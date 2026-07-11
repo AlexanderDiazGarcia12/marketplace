@@ -56,3 +56,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Claude Code
+CLAUDE.md
+.claude/
+.claude_metrics/
+.claude_logs/
+!/.claude/agents/*.json
+!/.claude/apps/
