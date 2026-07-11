@@ -22,7 +22,7 @@ public record OrderId(UUID value) {
     public static Either<Failure, OrderId> of(UUID raw) {
         return Try.of(() -> new OrderId(raw))
                 .toEither()
-                .mapLeft(cause -> new Failure.InvalidOrderId(raw));
+                .mapLeft(cause -> new Failure.InvalidOrderId(String.valueOf(raw)));
     }
 
     public static Either<Failure, OrderId> of(String raw) {

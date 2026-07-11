@@ -22,7 +22,7 @@ public record Weight(BigDecimal kilograms) {
     public static Either<Failure, Weight> of(BigDecimal raw) {
         return Try.of(() -> new Weight(raw))
                 .toEither()
-                .mapLeft(cause -> new Failure.InvalidWeight(raw));
+                .mapLeft(cause -> new Failure.InvalidWeight(String.valueOf(raw)));
     }
 
     public static Either<Failure, Weight> of(String raw) {

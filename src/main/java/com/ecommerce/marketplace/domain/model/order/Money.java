@@ -26,7 +26,7 @@ public record Money(BigDecimal amount) {
     public static Either<Failure, Money> of(BigDecimal raw) {
         return Try.of(() -> new Money(raw))
                 .toEither()
-                .mapLeft(cause -> new Failure.InvalidMoney(raw));
+                .mapLeft(cause -> new Failure.InvalidMoney(String.valueOf(raw)));
     }
 
     public static Either<Failure, Money> of(String raw) {
