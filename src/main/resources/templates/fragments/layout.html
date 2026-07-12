@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!--/*
+  Base page chrome for the whole application (US-08).
+
+  Every page (dashboard/listing now; create/edit forms, CSV import status, and checkout later)
+  includes this fragment via th:replace="~{fragments/layout :: page(title=..., content=~{::section})}"
+  so header/nav/footer, the HTML skeleton, and the Tailwind CDN script live in exactly one place.
+
+  Deliberately vanilla Thymeleaf fragments (th:fragment / th:replace) rather than the Thymeleaf
+  Layout Dialect: with a single reusable fragment and no multi-level template inheritance need yet,
+  the dialect would add a dependency without buying anything this mechanism doesn't already do.
+  Revisit if later stories introduce deeper layout nesting.
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="${title} + ' · Marketplace'">Marketplace</title>
+    <!--/* RF-5.1: Tailwind CSS CDN (JIT engine) — dynamic styling without a Node/npm build
+      pipeline, appropriate for this project stage. See US-08 report for the trade-off discussion. */-->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+
+<header class="border-b border-slate-200 bg-white">
+    <nav class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+            <div class="flex items-center gap-8">
+                <a href="/" class="text-lg font-semibold tracking-tight text-slate-900">Marketplace</a>
+                <div class="hidden md:flex md:gap-6">
+                    <a href="/products"
+                       class="text-sm font-medium text-slate-600 hover:text-slate-900">Products</a>
+                    <a href="#" aria-disabled="true"
+                       class="text-sm font-medium text-slate-400 cursor-not-allowed" title="Coming soon">Orders</a>
+                    <a href="#" aria-disabled="true"
+                       class="text-sm font-medium text-slate-400 cursor-not-allowed" title="Coming soon">Import</a>
+                </div>
+            </div>
+
+            <button type="button" id="mobile-menu-button"
+                    class="md:hidden inline-flex items-center justify-center rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                    aria-controls="mobile-menu" aria-expanded="false">
+                <span class="sr-only">Open main menu</span>
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                     aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="mobile-menu" class="hidden md:hidden pb-4">
+            <div class="flex flex-col gap-1">
+                <a href="/products"
+                   class="rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">Products</a>
+                <a href="#" aria-disabled="true"
+                   class="rounded-md px-3 py-2 text-sm font-medium text-slate-400">Orders</a>
+                <a href="#" aria-disabled="true"
+                   class="rounded-md px-3 py-2 text-sm font-medium text-slate-400">Import</a>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+    <div th:replace="${content}"></div>
+</main>
+
+<footer class="border-t border-slate-200 bg-white">
+    <div class="mx-auto max-w-7xl px-4 py-6 text-center text-sm text-slate-500 sm:px-6 lg:px-8">
+        <p>&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> Marketplace. All rights
+            reserved.</p>
+    </div>
+</footer>
+
+<script th:inline="none">
+    // Minimal vanilla-JS mobile nav toggle — not a SPA framework, no routing/state/virtual DOM.
+    document.getElementById('mobile-menu-button')?.addEventListener('click', function () {
+        var menu = document.getElementById('mobile-menu');
+        var expanded = this.getAttribute('aria-expanded') === 'true';
+        this.setAttribute('aria-expanded', String(!expanded));
+        menu.classList.toggle('hidden');
+    });
+</script>
+</body>
+</html>
