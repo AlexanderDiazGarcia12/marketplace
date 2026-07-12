@@ -23,6 +23,14 @@ services:
       - 'checkpoint_completion_target=0.9'
       - '-c'
       - 'wal_compression=on'
+      - '-c'
+      - 'effective_cache_size=768MB'
+      - '-c'
+      - 'random_page_cost=1.1'
+      - '-c'
+      - 'autovacuum_vacuum_scale_factor=0.05'
+      - '-c'
+      - 'autovacuum_analyze_scale_factor=0.02'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
