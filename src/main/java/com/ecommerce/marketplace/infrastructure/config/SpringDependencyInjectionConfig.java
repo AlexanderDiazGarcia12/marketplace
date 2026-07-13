@@ -2,13 +2,18 @@ package com.ecommerce.marketplace.infrastructure.config;
 
 import com.ecommerce.marketplace.application.ports.in.CreateProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.GetProductUseCase;
+import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
 import com.ecommerce.marketplace.application.service.CreateProductService;
 import com.ecommerce.marketplace.application.service.GetProductService;
+import com.ecommerce.marketplace.application.service.UpdateProductService;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Single composition root for {@code application.service} beans (US-05).
@@ -46,8 +51,16 @@ import org.springframework.context.annotation.Configuration;
 public class SpringDependencyInjectionConfig {
 
     @Bean
-    ProductRepositoryPort productRepositoryPort(SpringDataProductJpaRepository jpaRepository) {
-        return new PostgreSQLProductRepositoryAdapter(jpaRepository);
+    TransactionTemplate marketplaceTransactionTemplate(PlatformTransactionManager transactionManager) {
+        return new TransactionTemplate(transactionManager);
+    }
+
+    @Bean
+    ProductRepositoryPort productRepositoryPort(
+            SpringDataProductJpaRepository jpaRepository,
+            EntityManager entityManager,
+            TransactionTemplate transactionTemplate) {
+        return new PostgreSQLProductRepositoryAdapter(jpaRepository, entityManager, transactionTemplate);
     }
 
     @Bean
@@ -58,5 +71,10 @@ public class SpringDependencyInjectionConfig {
     @Bean
     GetProductUseCase getProductUseCase(ProductRepositoryPort productRepository) {
         return new GetProductService(productRepository);
+    }
+
+    @Bean
+    UpdateProductUseCase updateProductUseCase(ProductRepositoryPort productRepository) {
+        return new UpdateProductService(productRepository);
     }
 }

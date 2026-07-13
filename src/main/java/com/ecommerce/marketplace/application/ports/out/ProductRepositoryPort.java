@@ -33,7 +33,18 @@ public interface ProductRepositoryPort {
      */
     Either<Failure, Product> upsertBySku(Product product);
 
-    Either<Failure, Product> updateStock(SKU sku, int newStock, long expectedVersion);
+    /**
+     * Persists an edit to an existing product (US-11), re-applying every field of the already
+     * re-validated {@code product} aggregate. The aggregate carries the {@code version} the editor
+     * loaded, so implementations must run Hibernate's optimistic {@code @Version} check against it:
+     * a concurrent edit that advanced the stored row yields
+     * {@link Failure.ConcurrentStockConflict} (a lost update was prevented), and a SKU that no
+     * longer identifies a live row yields {@link Failure.ProductNotFound}. This replaces the
+     * earlier stock-only {@code updateStock} signature: the edit flow re-validates and persists the
+     * whole aggregate, not just stock, so the port receives the full domain object rather than a
+     * loose primitive triple.
+     */
+    Either<Failure, Product> update(Product product);
 
     Either<Failure, Page<Product>> search(Option<String> searchText, Option<Category> category, PageRequest pageRequest);
 
