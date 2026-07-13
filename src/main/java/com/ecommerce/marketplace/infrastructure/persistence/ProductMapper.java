@@ -34,6 +34,24 @@ final class ProductMapper {
                 Math.toIntExact(product.version()));
     }
 
+    /**
+     * Projects the re-validated {@code product}'s editable fields onto a detached row that reuses
+     * {@code managed}'s identity, so a merge runs Hibernate's versioned UPDATE (US-11). The
+     * {@code version} carried is the one the editor loaded on {@code product} (its expected
+     * version), not {@code managed}'s freshly-read one, which is what makes a concurrent edit
+     * surface as an optimistic-lock failure instead of overwriting the newer row.
+     */
+    static JPAProductEntity toEditedEntity(JPAProductEntity managed, Product product) {
+        return managed.editedTo(
+                product.name(),
+                product.description(),
+                product.category(),
+                product.price().amount(),
+                product.stock(),
+                product.weight().kilograms(),
+                Math.toIntExact(product.version()));
+    }
+
     static Product toDomain(JPAProductEntity entity) {
         return new Product(
                 new SKU(entity.getSku()),

@@ -56,6 +56,10 @@ public record ProductFormErrors(Map<String, String> fieldErrors, Seq<String> for
                     new FieldMessage("weightKg", "Weight must be a non-negative number in kilograms (e.g. 1.250).");
             case Failure.DuplicateSku duplicate ->
                     new FieldMessage("sku", "A product with SKU '" + duplicate.sku().value() + "' already exists.");
+            case Failure.ConcurrentStockConflict ignored ->
+                    new FieldMessage(GENERAL_FIELD, "This product was changed by someone else since you opened it. Reload to see the latest values, then reapply your edit.");
+            case Failure.ProductNotFound ignored ->
+                    new FieldMessage(GENERAL_FIELD, "This product no longer exists.");
             default -> new FieldMessage(GENERAL_FIELD, "The submitted value is invalid.");
         };
     }

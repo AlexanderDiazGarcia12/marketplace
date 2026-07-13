@@ -9,26 +9,40 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.OptimisticLockException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Spring Data JPA adapter for {@link ProductRepositoryPort}. The sole place where {@code products}
  * rows are read/written; it maps every persistence type back to pure domain objects via
  * {@link ProductMapper} so no {@code @Entity} escapes {@code infrastructure.persistence}.
  *
- * <p>US-09 exercises {@link #save(Product)} and {@link #findBySku(SKU)}. The remaining port
- * methods are intentionally left unimplemented — each is owned by a later story and building a
- * fake here would be worse than an honest signal that it is not wired yet.</p>
+ * <p>US-09 exercises {@link #save(Product)} and {@link #findBySku(SKU)}. US-11 adds
+ * {@link #update(Product)}: the <em>only</em> place in the whole hexagon that catches a persistence
+ * exception. Hibernate's optimistic {@code @Version} check is translated here into
+ * {@code Either.left(new Failure.ConcurrentStockConflict(sku))} — the business flow above this
+ * adapter (application, web) stays exception-free and pattern-matches the {@code Failure} value.
+ * The remaining port methods are owned by later stories and left unimplemented on purpose.</p>
  */
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
     private static final String SKU_UNIQUE_CONSTRAINT = "uq_products_sku";
 
     private final SpringDataProductJpaRepository jpaRepository;
+    private final EntityManager entityManager;
+    private final TransactionTemplate transactionTemplate;
 
-    public PostgreSQLProductRepositoryAdapter(SpringDataProductJpaRepository jpaRepository) {
+    public PostgreSQLProductRepositoryAdapter(
+            SpringDataProductJpaRepository jpaRepository,
+            EntityManager entityManager,
+            TransactionTemplate transactionTemplate) {
         this.jpaRepository = jpaRepository;
+        this.entityManager = entityManager;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Override
@@ -50,13 +64,31 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
     }
 
     @Override
-    public Either<Failure, Product> upsertBySku(Product product) {
-        throw new UnsupportedOperationException("Idempotent upsert-by-SKU is delivered by US-17");
+    public Either<Failure, Product> update(Product product) {
+        try {
+            return transactionTemplate.execute(status -> applyEdit(product));
+        } catch (OptimisticLockException | ObjectOptimisticLockingFailureException conflict) {
+            return Either.left(new Failure.ConcurrentStockConflict(product.sku()));
+        }
+    }
+
+    private Either<Failure, Product> applyEdit(Product product) {
+        return Option.ofOptional(jpaRepository.findBySku(product.sku().value()))
+                .map(managed -> mergeEdit(managed, product))
+                .getOrElse(() -> Either.left(new Failure.ProductNotFound(product.sku())));
+    }
+
+    private Either<Failure, Product> mergeEdit(JPAProductEntity managed, Product product) {
+        JPAProductEntity edited = ProductMapper.toEditedEntity(managed, product);
+        entityManager.detach(managed);
+        JPAProductEntity merged = entityManager.merge(edited);
+        entityManager.flush();
+        return Either.right(ProductMapper.toDomain(merged));
     }
 
     @Override
-    public Either<Failure, Product> updateStock(SKU sku, int newStock, long expectedVersion) {
-        throw new UnsupportedOperationException("Optimistic stock update is delivered by US-11");
+    public Either<Failure, Product> upsertBySku(Product product) {
+        throw new UnsupportedOperationException("Idempotent upsert-by-SKU is delivered by US-17");
     }
 
     @Override
