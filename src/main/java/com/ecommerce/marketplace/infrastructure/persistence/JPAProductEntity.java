@@ -126,4 +126,19 @@ public class JPAProductEntity {
         edited.deletedAt = this.deletedAt;
         return edited;
     }
+
+    /**
+     * Stamps {@code deleted_at} in place on this <em>managed</em> row (US-12). Because the instance
+     * stays attached to the persistence context, Hibernate's dirty checking issues a versioned
+     * {@code UPDATE ... WHERE id = ? AND version = ?} on flush, advancing {@code @Version}
+     * automatically — no {@code detach}/{@code merge} dance is needed here (that is only required by
+     * {@link #editedTo} to reconcile the editor's expected version). The version bump is what closes
+     * the race with an in-flight edit: a concurrent edit carrying the pre-delete version can no
+     * longer merge, so it fails with an optimistic-lock conflict instead of resurrecting the row.
+     * Mutating {@code deletedAt} through this narrow method rather than a generic setter keeps the
+     * entity's mutation surface closed, matching the {@link #editedTo} convention.
+     */
+    void markDeleted(OffsetDateTime deletedAt) {
+        this.deletedAt = deletedAt;
+    }
 }

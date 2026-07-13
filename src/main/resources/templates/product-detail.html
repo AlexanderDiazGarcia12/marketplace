@@ -20,11 +20,18 @@
             <span th:text="'Saved changes to ' + ${updatedName} + '.'">Saved.</span>
         </div>
 
-        <div class="mb-6 flex justify-end">
+        <div class="mb-6 flex justify-end gap-3">
             <a th:href="@{/products/{sku}/edit(sku=${product.sku})}"
                class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
                 Edit product
             </a>
+            <form th:action="@{/products/{sku}/delete(sku=${product.sku})}" method="post"
+                  onsubmit="return confirm('Delete this product? It will be hidden from the catalog but kept for historical orders.');">
+                <button type="submit"
+                        class="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-50">
+                    Delete product
+                </button>
+            </form>
         </div>
 
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">

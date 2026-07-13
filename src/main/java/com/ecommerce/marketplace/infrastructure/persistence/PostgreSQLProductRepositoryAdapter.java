@@ -16,6 +16,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.OffsetDateTime;
+
 /**
  * Spring Data JPA adapter for {@link ProductRepositoryPort}. The sole place where {@code products}
  * rows are read/written; it maps every persistence type back to pure domain objects via
@@ -26,7 +28,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  * exception. Hibernate's optimistic {@code @Version} check is translated here into
  * {@code Either.left(new Failure.ConcurrentStockConflict(sku))} — the business flow above this
  * adapter (application, web) stays exception-free and pattern-matches the {@code Failure} value.
- * The remaining port methods are owned by later stories and left unimplemented on purpose.</p>
+ *
+ * <p>US-12 adds {@link #softDelete(SKU)}: it loads the managed row (via {@code findBySku}, which
+ * already filters {@code deleted_at IS NULL}), stamps {@code deleted_at} in place and lets
+ * Hibernate's dirty checking flush a versioned UPDATE — advancing {@code @Version} so a concurrent
+ * in-flight edit can no longer resurrect the row (its stale-version merge fails the optimistic
+ * check instead). A SKU that no longer identifies a live row (never existed, or already deleted)
+ * yields {@link Failure.ProductNotFound}, making the delete idempotent-friendly. The remaining
+ * port methods are owned by later stories and left unimplemented on purpose.</p>
  */
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
@@ -98,7 +107,19 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
 
     @Override
     public Either<Failure, Void> softDelete(SKU sku) {
-        throw new UnsupportedOperationException("Soft delete is delivered by US-12");
+        return transactionTemplate.execute(status -> applySoftDelete(sku));
+    }
+
+    private Either<Failure, Void> applySoftDelete(SKU sku) {
+        return Option.ofOptional(jpaRepository.findBySku(sku.value()))
+                .map(this::stampDeleted)
+                .getOrElse(() -> Either.left(new Failure.ProductNotFound(sku)));
+    }
+
+    private Either<Failure, Void> stampDeleted(JPAProductEntity managed) {
+        managed.markDeleted(OffsetDateTime.now());
+        entityManager.flush();
+        return Either.right(null);
     }
 
     private static boolean isSkuUniqueViolation(DataIntegrityViolationException violation) {
