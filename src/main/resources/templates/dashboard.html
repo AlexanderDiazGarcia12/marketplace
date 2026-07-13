@@ -60,6 +60,7 @@
             class="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <li th:each="product : ${products}"
                 class="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+                <a th:href="@{/products/{sku}(sku=${product.sku})}" class="block">
                 <div class="flex aspect-square items-center justify-center bg-slate-100 text-slate-400">
                     <svg class="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
                          aria-hidden="true">
@@ -81,6 +82,7 @@
                               class="text-xs font-medium text-red-500">Out of stock</span>
                     </div>
                 </div>
+                </a>
             </li>
         </ul>
 
