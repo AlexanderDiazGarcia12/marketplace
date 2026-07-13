@@ -1,12 +1,13 @@
 package com.ecommerce.marketplace.infrastructure.persistence;
 
-import com.ecommerce.marketplace.application.ports.in.query.Page;
-import com.ecommerce.marketplace.application.ports.in.query.PageRequest;
+import com.ecommerce.marketplace.application.ports.query.Page;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.product.Category;
 import com.ecommerce.marketplace.domain.model.product.Product;
 import com.ecommerce.marketplace.domain.model.product.SKU;
+import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 import jakarta.persistence.EntityManager;
@@ -34,8 +35,13 @@ import java.time.OffsetDateTime;
  * Hibernate's dirty checking flush a versioned UPDATE — advancing {@code @Version} so a concurrent
  * in-flight edit can no longer resurrect the row (its stale-version merge fails the optimistic
  * check instead). A SKU that no longer identifies a live row (never existed, or already deleted)
- * yields {@link Failure.ProductNotFound}, making the delete idempotent-friendly. The remaining
- * port methods are owned by later stories and left unimplemented on purpose.</p>
+ * yields {@link Failure.ProductNotFound}, making the delete idempotent-friendly.
+ *
+ * <p>US-13 adds {@link #search(Option, Option, PageRequest)}: a native paginated query whose
+ * {@code ILIKE '%term%'} predicate stays sargable so the trgm GIN indexes from US-09 remain usable
+ * (see {@link SpringDataProductJpaRepository#search}). A separate count query supplies
+ * {@code totalElements}; both filters are optional and soft-deleted rows are excluded. The
+ * remaining port methods are owned by later stories and left unimplemented on purpose.</p>
  */
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
@@ -102,7 +108,19 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
 
     @Override
     public Either<Failure, Page<Product>> search(Option<String> searchText, Option<Category> category, PageRequest pageRequest) {
-        throw new UnsupportedOperationException("Catalog search is delivered by US-13");
+        String text = searchText.map(String::trim).filter(value -> !value.isEmpty()).getOrNull();
+        String categoryName = category.map(Category::name).getOrNull();
+
+        Seq<Product> content = io.vavr.collection.List.ofAll(
+                        jpaRepository.search(text, categoryName, toPageable(pageRequest)))
+                .map(ProductMapper::toDomain);
+        long total = jpaRepository.countSearch(text, categoryName);
+
+        return Either.right(Page.of(content, pageRequest, total));
+    }
+
+    private static org.springframework.data.domain.Pageable toPageable(PageRequest pageRequest) {
+        return org.springframework.data.domain.PageRequest.of(pageRequest.page(), pageRequest.size());
     }
 
     @Override

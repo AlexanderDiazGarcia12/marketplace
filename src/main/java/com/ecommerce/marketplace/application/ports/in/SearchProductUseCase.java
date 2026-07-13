@@ -1,7 +1,7 @@
 package com.ecommerce.marketplace.application.ports.in;
 
 import com.ecommerce.marketplace.application.ports.in.command.SearchProductsCommand;
-import com.ecommerce.marketplace.application.ports.in.query.Page;
+import com.ecommerce.marketplace.application.ports.query.Page;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.product.Product;
 import io.vavr.control.Either;
