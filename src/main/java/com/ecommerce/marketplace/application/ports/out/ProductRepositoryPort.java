@@ -1,7 +1,7 @@
 package com.ecommerce.marketplace.application.ports.out;
 
-import com.ecommerce.marketplace.application.ports.in.query.Page;
-import com.ecommerce.marketplace.application.ports.in.query.PageRequest;
+import com.ecommerce.marketplace.application.ports.query.Page;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.product.Category;
 import com.ecommerce.marketplace.domain.model.product.Product;
