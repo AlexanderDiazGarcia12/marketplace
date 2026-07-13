@@ -1,48 +1,120 @@
 package com.ecommerce.marketplace.infrastructure.web;
 
+import com.ecommerce.marketplace.application.ports.in.SearchProductUseCase;
+import com.ecommerce.marketplace.application.ports.in.command.SearchProductsCommand;
+import com.ecommerce.marketplace.application.ports.query.Page;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
+import com.ecommerce.marketplace.domain.failure.Failure;
+import com.ecommerce.marketplace.domain.model.product.Category;
+import com.ecommerce.marketplace.domain.model.product.Product;
+import io.vavr.control.Either;
+import io.vavr.control.Option;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Dashboard / product-listing shell (US-08).
+ * Dashboard / product-listing page (US-13). {@code GET /} and {@code GET /products} now render real,
+ * paginated catalog results through {@link SearchProductUseCase}, replacing the static fixture the
+ * US-08 shell carried as a placeholder.
  *
- * <p>{@code application.ports.in.SearchProductUseCase} (US-04) has no implementation yet — wiring
- * a real search adapter is US-13's job. Per the vertical-slicing convention already established by
- * US-05 (see {@code infrastructure.config.SpringDependencyInjectionConfig}), this story does not
- * fabricate a stub bean for that port just to have something to render. Instead this controller
- * renders the listing shell using {@link #SAMPLE_PRODUCTS}, a static, view-only fixture that never
- * touches the port's contract — so US-13 replaces the model population here without touching the
- * template's {@code th:each} contract ({@code name}, {@code sku}, {@code category}, {@code priceLabel},
- * {@code stock}).</p>
+ * <p>The query parameters are all optional: {@code q} (free-text), {@code category} (a
+ * {@link Category} label), and {@code page} (zero-based index). An unparseable {@code category}
+ * is treated as "no category filter" rather than an error — the honest outcome for a dashboard
+ * where filters are conveniences. The whole flow stays inside Vavr's {@code Either}: the use case
+ * returns {@code Either<Failure, Page<Product>>}, folded here into the model — a {@code Failure}
+ * degrades to an empty result view rather than a stacktrace, and the domain {@code Product} never
+ * reaches the template ({@link ProductCardView} projects each row).</p>
  */
 @Controller
 public class ProductDashboardController {
 
-    private static final List<ProductCardView> SAMPLE_PRODUCTS = List.of(
-            new ProductCardView("Running Shoes", "RS-001", "Footwear", "$89.99", 150),
-            new ProductCardView("Organic Coffee Beans", "CB-010", "Food & Beverage", "$18.75", 500),
-            new ProductCardView("Wireless Mouse", "WM-042", "Electronics", "$29.99", 75),
-            new ProductCardView("Leather Wallet", "LW-019", "Accessories", "$39.99", 180),
-            new ProductCardView("Camping Tent", "CT-005", "Outdoors", "$199.99", 25),
-            new ProductCardView("Protein Powder", "PP-012", "Food & Beverage", "$34.99", 0)
-    );
+    private static final int PAGE_SIZE = 12;
+
+    private final SearchProductUseCase searchProducts;
+
+    public ProductDashboardController(SearchProductUseCase searchProducts) {
+        this.searchProducts = searchProducts;
+    }
 
     @GetMapping({"/", "/products"})
-    public String dashboard(Model model) {
-        model.addAttribute("isEmpty", SAMPLE_PRODUCTS.isEmpty());
-        model.addAttribute("products", SAMPLE_PRODUCTS);
+    public String dashboard(
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "page", required = false, defaultValue = "0") int page,
+            Model model) {
+
+        Option<String> searchText = Option.of(query).map(String::trim).filter(value -> !value.isEmpty());
+        Option<Category> categoryFilter = Option.of(category)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .flatMap(raw -> Category.of(raw).toOption());
+
+        SearchProductsCommand command = new SearchProductsCommand(
+                searchText,
+                categoryFilter,
+                PageRequest.of(Math.max(page, 0), PAGE_SIZE));
+
+        return searchProducts.search(command)
+                .fold(
+                        failure -> renderEmpty(searchText, categoryFilter, model),
+                        result -> renderResults(result, searchText, categoryFilter, model));
+    }
+
+    private String renderResults(Page<Product> result, Option<String> searchText, Option<Category> categoryFilter, Model model) {
+        model.addAttribute("products", result.content().map(ProductCardView::from).asJava());
+        model.addAttribute("isEmpty", result.content().isEmpty());
+        model.addAttribute("pagination", PaginationView.from(result));
+        populateFilters(searchText, categoryFilter, model);
         return "dashboard";
     }
 
+    private String renderEmpty(Option<String> searchText, Option<Category> categoryFilter, Model model) {
+        model.addAttribute("products", io.vavr.collection.List.<ProductCardView>empty().asJava());
+        model.addAttribute("isEmpty", true);
+        model.addAttribute("pagination", PaginationView.empty());
+        populateFilters(searchText, categoryFilter, model);
+        return "dashboard";
+    }
+
+    private void populateFilters(Option<String> searchText, Option<Category> categoryFilter, Model model) {
+        model.addAttribute("query", searchText.getOrElse(""));
+        model.addAttribute("selectedCategory", categoryFilter.map(Category::label).getOrElse(""));
+        model.addAttribute("categories", Category.values());
+    }
+
     /**
-     * View-only fixture row for the dashboard shell. Deliberately distinct from the domain
-     * {@code Product} record (which requires a validated {@code SKU}, {@code Money}, etc.) — this
-     * is presentation-layer sample data, not a domain object, and is never assembled from or
-     * passed through {@code application.ports.in.SearchProductUseCase}.
+     * View-only pagination state derived from the application-layer {@link Page}. Exposes 1-based
+     * display numbers ({@code currentPage}/{@code totalPages}) and the previous/next page indices
+     * for the controls, so the template stays free of arithmetic.
      */
-    record ProductCardView(String name, String sku, String category, String priceLabel, int stock) {
+    record PaginationView(
+            int page,
+            int currentPage,
+            int totalPages,
+            long totalElements,
+            boolean hasPrevious,
+            boolean hasNext,
+            int previousPage,
+            int nextPage) {
+
+        static PaginationView from(Page<Product> result) {
+            int totalPages = Math.max(result.totalPages(), 1);
+            boolean hasPrevious = result.page() > 0;
+            return new PaginationView(
+                    result.page(),
+                    result.page() + 1,
+                    totalPages,
+                    result.totalElements(),
+                    hasPrevious,
+                    result.hasNext(),
+                    hasPrevious ? result.page() - 1 : 0,
+                    result.hasNext() ? result.page() + 1 : result.page());
+        }
+
+        static PaginationView empty() {
+            return new PaginationView(0, 1, 1, 0, false, false, 0, 0);
+        }
     }
 }

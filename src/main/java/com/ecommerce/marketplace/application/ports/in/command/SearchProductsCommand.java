@@ -1,6 +1,6 @@
 package com.ecommerce.marketplace.application.ports.in.command;
 
-import com.ecommerce.marketplace.application.ports.in.query.PageRequest;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
 import com.ecommerce.marketplace.domain.model.product.Category;
 import io.vavr.control.Option;
 

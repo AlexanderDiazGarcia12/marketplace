@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <!--/*
-  Dashboard / product-listing shell (US-08).
+  Dashboard / product-listing page (US-13).
 
-  Scope note: SearchProductUseCase (US-04) has no implementation yet — that's US-13's job. This
-  view intentionally does NOT call through the real port. The "products" model attribute is
-  either the static sample fixture below (isEmpty=false) or an empty list (isEmpty=true), both
-  supplied directly by ProductDashboardController — never routed through SearchProductUseCase —
-  so nothing here has to be ripped out when US-13 wires the real search adapter.
+  Now backed by SearchProductUseCase: the "products" model attribute holds real, paginated
+  ProductCardView projections, and the GET filter form below submits "q" (free-text) and
+  "category" back to this same endpoint. Pagination controls page through the result set using
+  the PaginationView model attribute. The th:each card contract (name, sku, category, priceLabel,
+  stock) is unchanged from the US-08 shell.
 */-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: page(title='Products', content=~{::section})}">
@@ -26,17 +26,22 @@
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Products</h1>
-                <p class="mt-1 text-sm text-slate-500">Browse the catalog. Search and filtering arrive in a
-                    later story.</p>
+                <p class="mt-1 text-sm text-slate-500">Browse the catalog. Search by name or description and
+                    filter by category.</p>
             </div>
 
-            <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <div class="mt-4 sm:mt-0">
                 <a href="/products/new"
                    class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
                     New product
                 </a>
-                <label for="search" class="sr-only">Search products</label>
-                <div class="relative">
+            </div>
+        </div>
+
+        <form method="get" action="/products" class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="flex-1">
+                <label for="search" class="block text-xs font-medium text-slate-600">Search</label>
+                <div class="relative mt-1">
                     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                         <svg class="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                              stroke="currentColor" aria-hidden="true">
@@ -44,11 +49,33 @@
                                   d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
                         </svg>
                     </div>
-                    <input type="search" id="search" disabled placeholder="Search products (coming soon)"
-                           class="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-400 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 cursor-not-allowed sm:w-72 sm:text-sm"/>
+                    <input type="search" id="search" name="q" th:value="${query}"
+                           placeholder="Search products"
+                           class="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-900 ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"/>
                 </div>
             </div>
-        </div>
+
+            <div class="sm:w-56">
+                <label for="category" class="block text-xs font-medium text-slate-600">Category</label>
+                <select id="category" name="category"
+                        class="mt-1 block w-full rounded-md border-0 py-2 pl-3 pr-8 text-slate-900 ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm">
+                    <option value="">All categories</option>
+                    <option th:each="cat : ${categories}" th:value="${cat.label()}" th:text="${cat.label()}"
+                            th:selected="${cat.label() == selectedCategory}">Category</option>
+                </select>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit"
+                        class="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                    Apply
+                </button>
+                <a href="/products"
+                   class="inline-flex items-center rounded-md px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+                    Reset
+                </a>
+            </div>
+        </form>
 
         <div th:if="${isEmpty}" class="mt-10 rounded-lg border-2 border-dashed border-slate-300 p-12 text-center">
             <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -56,9 +83,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375C2.754 3.75 2.25 4.254 2.25 4.875v1.5c0 .621.504 1.125 1.125 1.125Z"/>
             </svg>
-            <h3 class="mt-2 text-sm font-semibold text-slate-900">No products yet</h3>
-            <p class="mt-1 text-sm text-slate-500">The catalog is empty. Product search and creation are
-                covered by later stories.</p>
+            <h3 class="mt-2 text-sm font-semibold text-slate-900">No products found</h3>
+            <p class="mt-1 text-sm text-slate-500">No products match your search. Try a different term or clear
+                the filters.</p>
         </div>
 
         <ul th:unless="${isEmpty}"
@@ -91,10 +118,33 @@
             </li>
         </ul>
 
-        <p th:unless="${isEmpty}" class="mt-6 text-xs text-slate-400">
-            Sample data shown for layout purposes only — not sourced from the product catalog. Real search
-            arrives with US-13.
-        </p>
+        <nav th:unless="${isEmpty}" class="mt-8 flex items-center justify-between border-t border-slate-200 pt-4">
+            <a th:if="${pagination.hasPrevious}"
+               th:href="@{/products(q=${query},category=${selectedCategory},page=${pagination.previousPage})}"
+               class="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+                Previous
+            </a>
+            <span th:unless="${pagination.hasPrevious}"
+                  class="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-slate-300 ring-1 ring-inset ring-slate-200 cursor-not-allowed">
+                Previous
+            </span>
+
+            <p class="text-sm text-slate-500">
+                Page <span class="font-medium text-slate-900" th:text="${pagination.currentPage}">1</span>
+                of <span class="font-medium text-slate-900" th:text="${pagination.totalPages}">1</span>
+                <span class="text-slate-400" th:text="'(' + ${pagination.totalElements} + ' products)'">(0 products)</span>
+            </p>
+
+            <a th:if="${pagination.hasNext}"
+               th:href="@{/products(q=${query},category=${selectedCategory},page=${pagination.nextPage})}"
+               class="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+                Next
+            </a>
+            <span th:unless="${pagination.hasNext}"
+                  class="inline-flex items-center rounded-md px-3 py-2 text-sm font-medium text-slate-300 ring-1 ring-inset ring-slate-200 cursor-not-allowed">
+                Next
+            </span>
+        </nav>
     </section>
 
 </body>

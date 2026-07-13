@@ -3,11 +3,13 @@ package com.ecommerce.marketplace.infrastructure.config;
 import com.ecommerce.marketplace.application.ports.in.CreateProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.DeleteProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.GetProductUseCase;
+import com.ecommerce.marketplace.application.ports.in.SearchProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
 import com.ecommerce.marketplace.application.service.CreateProductService;
 import com.ecommerce.marketplace.application.service.DeleteProductService;
 import com.ecommerce.marketplace.application.service.GetProductService;
+import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
@@ -83,5 +85,10 @@ public class SpringDependencyInjectionConfig {
     @Bean
     DeleteProductUseCase deleteProductUseCase(ProductRepositoryPort productRepository) {
         return new DeleteProductService(productRepository);
+    }
+
+    @Bean
+    SearchProductUseCase searchProductUseCase(ProductRepositoryPort productRepository) {
+        return new SearchProductService(productRepository);
     }
 }
