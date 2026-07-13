@@ -1,6 +1,7 @@
 package com.ecommerce.marketplace.domain.failure;
 
 import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
+import com.ecommerce.marketplace.domain.model.order.Money;
 import com.ecommerce.marketplace.domain.model.order.OrderId;
 import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.collection.Seq;
@@ -71,6 +72,10 @@ public sealed interface Failure {
     record InvalidProductName(String name) implements Failure {
     }
 
+    /** A product was built with a price that is not strictly positive (the {@code products} table requires {@code price > 0}). */
+    record InvalidProductPrice(Money price) implements Failure {
+    }
+
     /** The order line quantity is not strictly positive. */
     record InvalidOrderQuantity(int quantity) implements Failure {
     }
@@ -111,7 +116,14 @@ public sealed interface Failure {
     record PaymentRejected(String reason) implements Failure {
     }
 
-    /** A request with this idempotency key has already been processed. */
+    /** A request with this idempotency key is already being processed, or was replayed while in flight. */
     record DuplicateOrderRequest(IdempotencyKey idempotencyKey) implements Failure {
+    }
+
+    /**
+     * A request reused an existing idempotency key but its payload hash does not match the
+     * original request stored for that key (RFC-style idempotency-key replay with a different body).
+     */
+    record IdempotencyKeyMismatch(IdempotencyKey idempotencyKey) implements Failure {
     }
 }

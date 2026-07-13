@@ -23,6 +23,9 @@ public record Product(
                 || name == null || name.isEmpty() || stock < 0) {
             throw new IllegalArgumentException("Product requires a sku, a non-blank name, a category, a price, a weight and a non-negative stock");
         }
+        if (price.amount().signum() <= 0) {
+            throw new IllegalArgumentException("Product requires a strictly positive price");
+        }
         description = Option.of(description).map(String::trim).getOrElse("");
     }
 
@@ -40,7 +43,9 @@ public record Product(
                 .toEither()
                 .mapLeft(cause -> stock < 0
                         ? new Failure.InvalidStock(stock)
-                        : new Failure.InvalidProductName(name));
+                        : price != null && price.amount().signum() <= 0
+                                ? new Failure.InvalidProductPrice(price)
+                                : new Failure.InvalidProductName(name));
     }
 
     public Either<Failure, Product> decreaseStock(int quantity) {
