@@ -12,10 +12,15 @@ import com.ecommerce.marketplace.application.service.GetProductService;
 import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
+import com.ecommerce.marketplace.infrastructure.persistence.ProductCacheCodec;
+import com.ecommerce.marketplace.infrastructure.persistence.RedisCachingProductRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -60,11 +65,25 @@ public class SpringDependencyInjectionConfig {
     }
 
     @Bean
+    @Profile("!cache")
     ProductRepositoryPort productRepositoryPort(
             SpringDataProductJpaRepository jpaRepository,
             EntityManager entityManager,
             TransactionTemplate transactionTemplate) {
         return new PostgreSQLProductRepositoryAdapter(jpaRepository, entityManager, transactionTemplate);
+    }
+
+    @Bean
+    @Profile("cache")
+    ProductRepositoryPort cachingProductRepositoryPort(
+            SpringDataProductJpaRepository jpaRepository,
+            EntityManager entityManager,
+            TransactionTemplate transactionTemplate,
+            StringRedisTemplate redis,
+            ObjectMapper objectMapper) {
+        PostgreSQLProductRepositoryAdapter postgresAdapter =
+                new PostgreSQLProductRepositoryAdapter(jpaRepository, entityManager, transactionTemplate);
+        return new RedisCachingProductRepositoryAdapter(postgresAdapter, redis, new ProductCacheCodec(objectMapper));
     }
 
     @Bean
