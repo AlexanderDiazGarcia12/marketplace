@@ -1,6 +1,7 @@
 package com.ecommerce.marketplace.domain.failure;
 
 import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
+import com.ecommerce.marketplace.domain.model.order.Money;
 import com.ecommerce.marketplace.domain.model.order.OrderId;
 import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.collection.Seq;
@@ -69,6 +70,10 @@ public sealed interface Failure {
 
     /** The product name is missing or blank. */
     record InvalidProductName(String name) implements Failure {
+    }
+
+    /** A product was built with a price that is not strictly positive (the {@code products} table requires {@code price > 0}). */
+    record InvalidProductPrice(Money price) implements Failure {
     }
 
     /** The order line quantity is not strictly positive. */

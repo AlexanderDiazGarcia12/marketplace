@@ -1,5 +1,11 @@
 package com.ecommerce.marketplace.infrastructure.config;
 
+import com.ecommerce.marketplace.application.ports.in.CreateProductUseCase;
+import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
+import com.ecommerce.marketplace.application.service.CreateProductService;
+import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
+import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -36,4 +42,14 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class SpringDependencyInjectionConfig {
+
+    @Bean
+    ProductRepositoryPort productRepositoryPort(SpringDataProductJpaRepository jpaRepository) {
+        return new PostgreSQLProductRepositoryAdapter(jpaRepository);
+    }
+
+    @Bean
+    CreateProductUseCase createProductUseCase(ProductRepositoryPort productRepository) {
+        return new CreateProductService(productRepository);
+    }
 }
