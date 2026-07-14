@@ -108,6 +108,16 @@ public sealed interface Failure {
     record InvalidCsvRow(int row, Seq<String> reasons) implements Failure {
     }
 
+    /**
+     * The uploaded CSV was rejected at the envelope level before any job was created (US-16):
+     * wrong file type/extension, missing or mismatched header line, empty file, or a size beyond
+     * the accepted limit. This is distinct from {@link InvalidCsvRow}, which reports a single
+     * malformed data row during the asynchronous per-row processing (US-17). {@code reason} is a
+     * short, user-facing diagnostic the upload form renders inline.
+     */
+    record InvalidCsvUpload(String reason) implements Failure {
+    }
+
     // ---------------------------------------------------------------------
     // Checkout / payment failures (US-03 mandated minimum set).
     // ---------------------------------------------------------------------
