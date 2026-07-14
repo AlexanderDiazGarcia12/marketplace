@@ -10,6 +10,7 @@ import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.EventPublisherPort;
 import com.ecommerce.marketplace.application.ports.out.ImportErrorRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobRepositoryPort;
+import com.ecommerce.marketplace.application.ports.out.PaymentGatewayPort;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
 import com.ecommerce.marketplace.application.service.CreateProductService;
 import com.ecommerce.marketplace.application.service.CsvProductRowValidator;
@@ -19,6 +20,7 @@ import com.ecommerce.marketplace.application.service.GetProductService;
 import com.ecommerce.marketplace.application.service.ImportProductsService;
 import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
+import com.ecommerce.marketplace.infrastructure.payment.FakePaymentGatewayAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportErrorRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportJobRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
@@ -144,6 +146,11 @@ public class SpringDependencyInjectionConfig {
     ImportProductsUseCase importProductsUseCase(
             ImportJobRepositoryPort importJobRepository, EventPublisherPort eventPublisher) {
         return new ImportProductsService(importJobRepository, eventPublisher);
+    }
+
+    @Bean
+    PaymentGatewayPort paymentGatewayPort() {
+        return new FakePaymentGatewayAdapter();
     }
 
     @Bean
