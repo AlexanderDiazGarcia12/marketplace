@@ -27,8 +27,8 @@ import java.util.Locale;
  *   <li>{@code insufficient-funds-} → business rejection by the (simulated) issuing bank:
  *       {@code Left(PaymentRejected)} whose reason marks it as a declined charge.</li>
  *   <li>{@code gateway-error-} → simulated infrastructure outage of the gateway itself:
- *       {@code Left(PaymentRejected)} whose reason marks it as a gateway failure, textually
- *       distinct from a bank decline so a caller/log can tell the two apart.</li>
+ *       {@code Left(PaymentGatewayUnavailable)}, a distinct sealed variant from a bank decline so a
+ *       caller can branch on type (HTTP 503 vs. 402) instead of string-matching the reason.</li>
  *   <li>any other token → <em>default rejection</em>. An unrecognized token must never silently
  *       succeed and move money, so the fail-safe default is to decline, not to approve.</li>
  * </ul>
@@ -56,7 +56,7 @@ public final class FakePaymentGatewayAdapter implements PaymentGatewayPort {
                     "Payment declined by the issuing bank: insufficient funds"));
         }
         if (normalized.startsWith(GATEWAY_ERROR_PREFIX)) {
-            return Either.left(new Failure.PaymentRejected(
+            return Either.left(new Failure.PaymentGatewayUnavailable(
                     "Payment gateway error: the simulated gateway is unavailable"));
         }
         return Either.left(new Failure.PaymentRejected(

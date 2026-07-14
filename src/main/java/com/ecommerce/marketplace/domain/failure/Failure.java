@@ -135,6 +135,18 @@ public sealed interface Failure {
     record PaymentRejected(String reason) implements Failure {
     }
 
+    /**
+     * The payment gateway itself is unavailable — a transient infrastructure outage, not a
+     * customer-facing decline. Unlike {@link PaymentRejected} (the issuing bank refused the charge,
+     * a permanent business outcome for that attempt), this represents a temporary failure of the
+     * gateway to respond at all: the charge was neither approved nor refused, so a retry once the
+     * gateway recovers is legitimate. Checkout therefore leaves the idempotency key {@code IN_PROGRESS}
+     * for this variant (no compensating rejection is recorded) and surfaces it as HTTP 503, never
+     * the 402 a genuine decline gets.
+     */
+    record PaymentGatewayUnavailable(String reason) implements Failure {
+    }
+
     /** A request with this idempotency key is already being processed, or was replayed while in flight. */
     record DuplicateOrderRequest(IdempotencyKey idempotencyKey) implements Failure {
     }

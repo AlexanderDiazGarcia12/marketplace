@@ -42,13 +42,13 @@ class FakePaymentGatewayAdapterTest {
 
     @Test
     void gatewayErrorPrefixYieldsInfrastructureFailureDistinctFromBankDecline() {
-        Failure.PaymentRejected gatewayFailure = (Failure.PaymentRejected)
-                gateway.charge(new PaymentToken("gateway-error-1"), amount).getLeft();
-        Failure.PaymentRejected bankDecline = (Failure.PaymentRejected)
-                gateway.charge(new PaymentToken("insufficient-funds-1"), amount).getLeft();
+        Failure gatewayResult = gateway.charge(new PaymentToken("gateway-error-1"), amount).getLeft();
+        Failure bankResult = gateway.charge(new PaymentToken("insufficient-funds-1"), amount).getLeft();
 
+        assertThat(gatewayResult).isInstanceOf(Failure.PaymentGatewayUnavailable.class);
+        assertThat(bankResult).isInstanceOf(Failure.PaymentRejected.class);
+        Failure.PaymentGatewayUnavailable gatewayFailure = (Failure.PaymentGatewayUnavailable) gatewayResult;
         assertThat(gatewayFailure.reason()).containsIgnoringCase("gateway");
-        assertThat(gatewayFailure.reason()).isNotEqualTo(bankDecline.reason());
     }
 
     @Test

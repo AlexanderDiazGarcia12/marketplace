@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <!--/*
-  Minimal checkout form (US-22). Bare by design: it exists to drive the transactional purchase Unit
-  of Work end-to-end. The polished checkout experience (idempotency key carried across resubmits,
-  per-failure screens, a rich confirmation page) is US-23.
+  Checkout form (US-23). The idempotency key rides in a hidden field: on a pure input-validation
+  reject the controller re-renders this form with the entered values and the SAME key, so correcting
+  a typo and resubmitting stays one logical attempt. A fresh key is only ever minted by GET /checkout.
 */-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: page(title='Checkout', content=~{::section})}">
@@ -15,34 +15,37 @@
             <h1 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Checkout</h1>
             <p class="mt-1 text-sm text-slate-500">Simulated purchase. Payment tokens starting with
                 <code class="rounded bg-slate-100 px-1 py-0.5 text-slate-700">approved-</code> succeed;
-                <code class="rounded bg-slate-100 px-1 py-0.5 text-slate-700">insufficient-funds-</code> and
-                <code class="rounded bg-slate-100 px-1 py-0.5 text-slate-700">gateway-error-</code> are declined.</p>
+                <code class="rounded bg-slate-100 px-1 py-0.5 text-slate-700">insufficient-funds-</code> is declined;
+                <code class="rounded bg-slate-100 px-1 py-0.5 text-slate-700">gateway-error-</code> simulates an outage.</p>
+        </div>
+
+        <div th:if="${errors != null and not errors.isEmpty()}"
+             class="mb-6 rounded-md border border-red-200 bg-red-50 p-4">
+            <ul class="list-disc space-y-1 pl-5 text-sm text-red-700">
+                <li th:each="message : ${errors}" th:text="${message}">Error</li>
+            </ul>
         </div>
 
         <form th:action="@{/checkout}" method="post"
               class="space-y-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
 
+            <input type="hidden" name="idempotencyKey" th:value="${idempotencyKey}"/>
+
             <div>
                 <label for="sku" class="block text-sm font-medium text-slate-700">Product SKU</label>
-                <input type="text" id="sku" name="sku" required
+                <input type="text" id="sku" name="sku" th:value="${sku}" required
                        class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"/>
             </div>
 
             <div>
                 <label for="quantity" class="block text-sm font-medium text-slate-700">Quantity</label>
-                <input type="number" id="quantity" name="quantity" min="1" value="1" required
+                <input type="number" id="quantity" name="quantity" min="1" th:value="${quantity}" required
                        class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"/>
             </div>
 
             <div>
                 <label for="paymentToken" class="block text-sm font-medium text-slate-700">Payment token</label>
-                <input type="text" id="paymentToken" name="paymentToken" value="approved-card" required
-                       class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"/>
-            </div>
-
-            <div>
-                <label for="idempotencyKey" class="block text-sm font-medium text-slate-700">Idempotency key</label>
-                <input type="text" id="idempotencyKey" name="idempotencyKey" th:value="${suggestedIdempotencyKey}" required
+                <input type="text" id="paymentToken" name="paymentToken" th:value="${paymentToken}" required
                        class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"/>
             </div>
 

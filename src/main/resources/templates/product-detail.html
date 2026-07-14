@@ -61,6 +61,13 @@
                         Out of stock</span>
                 </div>
 
+                <div class="mt-6" th:if="${product.inStock}">
+                    <a th:href="@{/checkout(sku=${product.sku})}"
+                       class="inline-flex items-center rounded-md bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                        Buy now
+                    </a>
+                </div>
+
                 <dl class="mt-8 divide-y divide-slate-100 border-t border-slate-100 text-sm">
                     <div class="flex justify-between py-3">
                         <dt class="text-slate-500">SKU</dt>
