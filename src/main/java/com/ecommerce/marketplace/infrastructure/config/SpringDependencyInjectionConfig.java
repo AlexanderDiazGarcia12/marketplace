@@ -8,6 +8,7 @@ import com.ecommerce.marketplace.application.ports.in.ImportProductsUseCase;
 import com.ecommerce.marketplace.application.ports.in.SearchProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.EventPublisherPort;
+import com.ecommerce.marketplace.application.ports.out.IdempotencyStorePort;
 import com.ecommerce.marketplace.application.ports.out.ImportErrorRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.PaymentGatewayPort;
@@ -22,10 +23,12 @@ import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
 import com.ecommerce.marketplace.infrastructure.payment.FakePaymentGatewayAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportErrorRepositoryAdapter;
+import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLIdempotencyStoreAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportJobRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.ProductCacheCodec;
 import com.ecommerce.marketplace.infrastructure.persistence.RedisCachingProductRepositoryAdapter;
+import com.ecommerce.marketplace.infrastructure.persistence.SpringDataIdempotencyKeyJpaRepository;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataImportJobErrorJpaRepository;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataImportJobJpaRepository;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
@@ -151,6 +154,13 @@ public class SpringDependencyInjectionConfig {
     @Bean
     PaymentGatewayPort paymentGatewayPort() {
         return new FakePaymentGatewayAdapter();
+    }
+
+    @Bean
+    IdempotencyStorePort idempotencyStorePort(
+            SpringDataIdempotencyKeyJpaRepository idempotencyKeyJpaRepository,
+            PlatformTransactionManager transactionManager) {
+        return new PostgreSQLIdempotencyStoreAdapter(idempotencyKeyJpaRepository, transactionManager);
     }
 
     @Bean

@@ -36,3 +36,31 @@ Example tokens: `approved-visa-1`, `insufficient-funds-1`, `gateway-error-1`.
 The charge is fully deterministic: the same `(token, amount)` pair always yields the same result,
 including a stable `confirmationReference` derived from the token and amount (not a random value),
 so checkout tests can assert the reference exactly.
+
+## Purchase idempotency store
+
+Checkout (US-22/US-23) accepts a client-supplied `Idempotency-Key` header so a network retry or a
+double-click never charges or ships an order twice. `PostgreSQLIdempotencyStoreAdapter`
+(`infrastructure.persistence`) is the sole place `idempotency_keys` rows are read or written; it is a
+pure key-lifecycle registry that never runs business logic itself — the caller decides what to do
+with the `Either` it returns.
+
+`begin(key, requestHash)` always tries an unconditional INSERT first and lets the `key`'s primary key
+constraint (`idempotency_keys_pkey`) arbitrate a same-key race: exactly one concurrent request wins
+the INSERT, and every loser (including a later, non-concurrent retry) falls through to the same
+decision tree against the existing row:
+
+| Existing row | Incoming request hash | Outcome | Suggested HTTP status |
+|---|---|---|---|
+| *(none)* | — | fresh row inserted, `IN_PROGRESS` | 2xx, request proceeds |
+| any status | different from stored `request_hash` | `Failure.IdempotencyKeyMismatch` | 422 |
+| `IN_PROGRESS` | matches stored `request_hash` | `Failure.DuplicateOrderRequest` | 409 |
+| `COMPLETED` | matches stored `request_hash` | stored `responseSnapshot` returned, nothing re-executed | 2xx, replayed response |
+
+The hash-mismatch check always takes priority over the status check: reusing the same key for a
+genuinely different request body is a client usage error independent of timing, so it is rejected
+before the adapter even considers whether the original request is still in flight or already done.
+
+`complete(key, responseSnapshot)` performs a guarded `IN_PROGRESS → COMPLETED` transition (`UPDATE …
+WHERE status = 'IN_PROGRESS'`), so a duplicate or out-of-order completion can never overwrite an
+already-stored snapshot — the same hardening applied to the CSV import job's terminal transitions.
