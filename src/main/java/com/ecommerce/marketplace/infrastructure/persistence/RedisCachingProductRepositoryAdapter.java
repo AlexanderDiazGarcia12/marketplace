@@ -114,6 +114,11 @@ public final class RedisCachingProductRepositoryAdapter implements ProductReposi
     }
 
     @Override
+    public Either<Failure, Product> decreaseStock(SKU sku, int quantity) {
+        return delegate.decreaseStock(sku, quantity).peek(this::invalidate);
+    }
+
+    @Override
     public Either<Failure, Void> softDelete(SKU sku) {
         return delegate.softDelete(sku).peek(ignored -> invalidate(sku));
     }
