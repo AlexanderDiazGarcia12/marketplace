@@ -40,8 +40,16 @@ import java.time.OffsetDateTime;
  * <p>US-13 adds {@link #search(Option, Option, PageRequest)}: a native paginated query whose
  * {@code ILIKE '%term%'} predicate stays sargable so the trgm GIN indexes from US-09 remain usable
  * (see {@link SpringDataProductJpaRepository#search}). A separate count query supplies
- * {@code totalElements}; both filters are optional and soft-deleted rows are excluded. The
- * remaining port methods are owned by later stories and left unimplemented on purpose.</p>
+ * {@code totalElements}; both filters are optional and soft-deleted rows are excluded.
+ *
+ * <p>US-17 adds {@link #upsertBySku(Product)}: an atomic native {@code INSERT ... ON CONFLICT (sku)
+ * DO UPDATE} (see {@link SpringDataProductJpaRepository#upsertBySku}) that converges to the same
+ * state on identical re-delivery (Kafka at-least-once) instead of duplicating or erroring. It bumps
+ * {@code version = products.version + 1} in SQL, deliberately bypassing Hibernate's {@code @Version}
+ * so checkout's optimistic locking is never invalidated. A conflict on a soft-deleted row is
+ * refused (the DO UPDATE is guarded by {@code deleted_at IS NULL}), surfacing an empty {@code
+ * RETURNING} that this adapter maps to {@link Failure.ProductNotFound} — an automated import does
+ * not resurrect a deliberately deleted product.</p>
  */
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
@@ -103,7 +111,22 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
 
     @Override
     public Either<Failure, Product> upsertBySku(Product product) {
-        throw new UnsupportedOperationException("Idempotent upsert-by-SKU is delivered by US-17");
+        return transactionTemplate.execute(status -> applyUpsert(product));
+    }
+
+    private Either<Failure, Product> applyUpsert(Product product) {
+        return io.vavr.collection.List.ofAll(jpaRepository.upsertBySku(
+                        product.sku().value(),
+                        product.name(),
+                        product.description(),
+                        product.category().name(),
+                        product.price().amount(),
+                        product.stock(),
+                        product.weight().kilograms()))
+                .headOption()
+                .map(ProductMapper::toDomain)
+                .map(Either::<Failure, Product>right)
+                .getOrElse(() -> Either.left(new Failure.ProductNotFound(product.sku())));
     }
 
     @Override

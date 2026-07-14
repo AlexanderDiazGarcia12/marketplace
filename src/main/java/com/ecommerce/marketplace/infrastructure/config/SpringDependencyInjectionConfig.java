@@ -7,18 +7,23 @@ import com.ecommerce.marketplace.application.ports.in.ImportProductsUseCase;
 import com.ecommerce.marketplace.application.ports.in.SearchProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.EventPublisherPort;
+import com.ecommerce.marketplace.application.ports.out.ImportErrorRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
 import com.ecommerce.marketplace.application.service.CreateProductService;
+import com.ecommerce.marketplace.application.service.CsvProductRowValidator;
 import com.ecommerce.marketplace.application.service.DeleteProductService;
 import com.ecommerce.marketplace.application.service.GetProductService;
 import com.ecommerce.marketplace.application.service.ImportProductsService;
 import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
+import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportErrorRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLImportJobRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.PostgreSQLProductRepositoryAdapter;
 import com.ecommerce.marketplace.infrastructure.persistence.ProductCacheCodec;
 import com.ecommerce.marketplace.infrastructure.persistence.RedisCachingProductRepositoryAdapter;
+import com.ecommerce.marketplace.infrastructure.persistence.SpringDataImportJobErrorJpaRepository;
+import com.ecommerce.marketplace.infrastructure.persistence.SpringDataImportJobJpaRepository;
 import com.ecommerce.marketplace.infrastructure.persistence.SpringDataProductJpaRepository;
 import tools.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -117,8 +122,20 @@ public class SpringDependencyInjectionConfig {
     }
 
     @Bean
-    ImportJobRepositoryPort importJobRepositoryPort(EntityManager entityManager) {
-        return new PostgreSQLImportJobRepositoryAdapter(entityManager);
+    ImportJobRepositoryPort importJobRepositoryPort(
+            EntityManager entityManager, SpringDataImportJobJpaRepository importJobJpaRepository) {
+        return new PostgreSQLImportJobRepositoryAdapter(entityManager, importJobJpaRepository);
+    }
+
+    @Bean
+    ImportErrorRepositoryPort importErrorRepositoryPort(
+            SpringDataImportJobErrorJpaRepository importJobErrorJpaRepository, ObjectMapper objectMapper) {
+        return new PostgreSQLImportErrorRepositoryAdapter(importJobErrorJpaRepository, objectMapper);
+    }
+
+    @Bean
+    CsvProductRowValidator csvProductRowValidator() {
+        return new CsvProductRowValidator();
     }
 
     @Bean
