@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -33,4 +34,13 @@ public interface SpringDataImportJobErrorJpaRepository extends JpaRepository<Imp
             @Param("errorReason") String errorReason);
 
     long countByImportJobId(UUID importJobId);
+
+    @Query(value = """
+            SELECT row_number, raw_line, CAST(error_reason AS text) AS reasons
+            FROM import_job_errors
+            WHERE import_job_id = :jobId
+            ORDER BY row_number
+            """,
+            nativeQuery = true)
+    List<ImportJobErrorRow> findErrorsByJob(@Param("jobId") UUID jobId);
 }

@@ -17,10 +17,17 @@ import io.vavr.control.Either;
  * <p>{@link #countByJob} lets the worker derive {@code rejected_rows} once, at the terminal
  * transition, from the authoritative row count in the table rather than an in-memory accumulator
  * that a partial redelivery would over-count.</p>
+ *
+ * <p>{@link #errorsFor} is the US-18 read query: it lists every rejected row of a job, ordered by
+ * {@code row_number}, with the {@code error_reason} JSONB array already deserialized back into a
+ * {@code Seq<String>} of legible reasons — the exact shape {@link #recordRowError} wrote — so the
+ * status view renders reasons as a list, never as raw JSON.</p>
  */
 public interface ImportErrorRepositoryPort {
 
     Either<Failure, Void> recordRowError(ImportJobId jobId, int rowNumber, String rawLine, Seq<String> reasons);
 
     long countByJob(ImportJobId jobId);
+
+    Seq<ImportRowError> errorsFor(ImportJobId jobId);
 }

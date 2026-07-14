@@ -118,6 +118,15 @@ public sealed interface Failure {
     record InvalidCsvUpload(String reason) implements Failure {
     }
 
+    /**
+     * No import job exists for the given id, or the id in the status-view URL is not a valid UUID
+     * at all (US-18). {@code jobId} is the raw identifier as it appeared in the request, in textual
+     * form — the domain stays free of the application-layer {@code ImportJobId} type, exactly as the
+     * value-object validation failures above carry the raw {@code String} rather than the parsed VO.
+     */
+    record ImportJobNotFound(String jobId) implements Failure {
+    }
+
     // ---------------------------------------------------------------------
     // Checkout / payment failures (US-03 mandated minimum set).
     // ---------------------------------------------------------------------

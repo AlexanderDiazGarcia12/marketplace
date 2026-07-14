@@ -1,15 +1,26 @@
 package com.ecommerce.marketplace.infrastructure.persistence;
 
+import com.ecommerce.marketplace.application.ports.in.command.ImportJobId;
+import com.ecommerce.marketplace.application.ports.out.ImportJobCounters;
+import com.ecommerce.marketplace.application.ports.out.ImportJobDetail;
+import com.ecommerce.marketplace.application.ports.out.ImportJobState;
 import com.ecommerce.marketplace.application.ports.out.NewImportJob;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+
 /**
- * Data Mapper from the application-layer {@link NewImportJob} to the {@link ImportJobEntity}
- * persistence row (US-16). Hand-written and package-private, matching the {@code ProductMapper}
- * convention — the entity never leaves {@code infrastructure.persistence}.
+ * Data Mapper between the application-layer import-job shapes and their {@code import_jobs}
+ * persistence rows. Hand-written and package-private, matching the {@code ProductMapper}
+ * convention — the entity/projection never leaves {@code infrastructure.persistence}.
  *
- * <p>Only the create direction exists: US-16 inserts a {@code PENDING} job and hands the id back
- * from the id it was given, so there is no entity-to-domain projection to build here (status/error
- * read-back is US-18's concern).</p>
+ * <ul>
+ *   <li>{@link #toEntity} — the create direction (US-16): builds a {@code PENDING}
+ *       {@link ImportJobEntity} from the {@link NewImportJob} write shape.</li>
+ *   <li>{@link #toDetail} — the read direction (US-18): projects the {@link ImportJobDetailRow}
+ *       native row into the application-layer {@link ImportJobDetail} the status view renders.</li>
+ * </ul>
  */
 final class ImportJobMapper {
 
@@ -18,5 +29,19 @@ final class ImportJobMapper {
 
     static ImportJobEntity toEntity(NewImportJob job) {
         return new ImportJobEntity(job.id().value(), job.fileReference(), job.originalFilename());
+    }
+
+    static ImportJobDetail toDetail(ImportJobDetailRow row) {
+        return new ImportJobDetail(
+                new ImportJobId(row.getId()),
+                ImportJobState.valueOf(row.getStatus()),
+                new ImportJobCounters(row.getTotalRows(), row.getAcceptedRows(), row.getRejectedRows()),
+                row.getOriginalFilename(),
+                atSystemOffset(row.getCreatedAt()),
+                atSystemOffset(row.getCompletedAt()));
+    }
+
+    private static OffsetDateTime atSystemOffset(Instant instant) {
+        return instant == null ? null : instant.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

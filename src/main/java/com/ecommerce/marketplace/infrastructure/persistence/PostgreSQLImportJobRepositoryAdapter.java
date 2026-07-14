@@ -2,6 +2,7 @@ package com.ecommerce.marketplace.infrastructure.persistence;
 
 import com.ecommerce.marketplace.application.ports.in.command.ImportJobId;
 import com.ecommerce.marketplace.application.ports.out.ImportJobCounters;
+import com.ecommerce.marketplace.application.ports.out.ImportJobDetail;
 import com.ecommerce.marketplace.application.ports.out.ImportJobRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobState;
 import com.ecommerce.marketplace.application.ports.out.NewImportJob;
@@ -53,6 +54,12 @@ public final class PostgreSQLImportJobRepositoryAdapter implements ImportJobRepo
     public Option<ImportJobState> currentState(ImportJobId jobId) {
         return Option.ofOptional(jpaRepository.findStatusById(jobId.value()))
                 .flatMap(this::toState);
+    }
+
+    @Override
+    public Option<ImportJobDetail> detail(ImportJobId jobId) {
+        return Option.ofOptional(jpaRepository.findDetailById(jobId.value()))
+                .map(ImportJobMapper::toDetail);
     }
 
     @Override
