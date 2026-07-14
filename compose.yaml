@@ -50,6 +50,13 @@ services:
       - 'KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER'
       - 'KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT'
       - 'KAFKA_AUTO_CREATE_TOPICS_ENABLE=true'
+      # Single-node dev broker: the internal __consumer_offsets / transaction-state topics must be
+      # RF=1, otherwise their default RF=3 can never be satisfied on one broker and every consumer
+      # group hangs forever at FindCoordinator (the outbox relay is producer-only, so this stayed
+      # latent until US-17 introduced the first Kafka consumer).
+      - 'KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1'
+      - 'KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1'
+      - 'KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1'
       - 'KAFKA_LOG_DIRS=/var/lib/kafka/data'
     ports:
       - '9092:9092'

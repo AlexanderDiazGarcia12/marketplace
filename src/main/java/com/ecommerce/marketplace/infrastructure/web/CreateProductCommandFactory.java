@@ -1,6 +1,7 @@
 package com.ecommerce.marketplace.infrastructure.web;
 
 import com.ecommerce.marketplace.application.ports.in.command.CreateProductCommand;
+import com.ecommerce.marketplace.application.text.CurrencyText;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.order.Money;
 import com.ecommerce.marketplace.domain.model.product.Category;
@@ -52,7 +53,7 @@ final class CreateProductCommandFactory {
     }
 
     private static Validation<Failure, Money> validatePrice(String raw) {
-        return Money.of(stripCurrency(raw)).toValidation();
+        return Money.of(CurrencyText.strip(raw)).toValidation();
     }
 
     private static Validation<Failure, Integer> validateStock(String raw) {
@@ -69,9 +70,5 @@ final class CreateProductCommandFactory {
 
     private static String description(String raw) {
         return Option.of(raw).map(String::trim).getOrElse("");
-    }
-
-    private static String stripCurrency(String raw) {
-        return raw == null ? null : raw.trim().replace("$", "").replace(",", "");
     }
 }
