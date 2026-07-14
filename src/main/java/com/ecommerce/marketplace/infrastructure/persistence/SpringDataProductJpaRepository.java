@@ -113,4 +113,32 @@ public interface SpringDataProductJpaRepository extends JpaRepository<JPAProduct
             @Param("price") BigDecimal price,
             @Param("stock") int stock,
             @Param("weightKg") BigDecimal weightKg);
+
+    /**
+     * Versioned stock decrement for checkout (US-22), the physical implementation of
+     * {@code ProductRepositoryPort.decreaseStock}. An atomic {@code UPDATE ... SET stock = stock - ?,
+     * version = version + 1 WHERE sku = ? AND deleted_at IS NULL AND version = ?}: the caller has
+     * already validated (via the domain rule) that the row it read has enough stock, so a zero-row
+     * result means only that a concurrent writer advanced {@code version}. Returning zero rows is a
+     * normal statement outcome — not an {@code OptimisticLockException} — so it never marks the
+     * checkout transaction rollback-only, which is what makes the caller's in-transaction bounded
+     * retry possible (a managed {@code merge}/{@code flush} conflict would poison the whole
+     * transaction instead). The version bump is done in SQL, outside Hibernate's {@code @Version}
+     * lifecycle, exactly like {@link #upsertBySku}. {@code RETURNING *} hands the updated row back so
+     * the adapter maps the new state without a second read; {@code @Modifying(clearAutomatically =
+     * true)} keeps the persistence context consistent with the row this statement wrote directly,
+     * so the next retry's re-read sees fresh committed state.
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE products
+            SET stock = stock - :quantity, version = version + 1
+            WHERE sku = :sku AND deleted_at IS NULL AND version = :expectedVersion
+            RETURNING *
+            """,
+            nativeQuery = true)
+    List<JPAProductEntity> decreaseStockIfVersionMatches(
+            @Param("sku") String sku,
+            @Param("quantity") int quantity,
+            @Param("expectedVersion") int expectedVersion);
 }

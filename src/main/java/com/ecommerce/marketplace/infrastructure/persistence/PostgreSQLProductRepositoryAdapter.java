@@ -10,6 +10,7 @@ import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
+import io.vavr.control.Try;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.OptimisticLockException;
 import org.hibernate.exception.ConstraintViolationException;
@@ -18,6 +19,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Spring Data JPA adapter for {@link ProductRepositoryPort}. The sole place where {@code products}
@@ -54,6 +56,9 @@ import java.time.OffsetDateTime;
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
     private static final String SKU_UNIQUE_CONSTRAINT = "uq_products_sku";
+    private static final int MAX_DECREASE_ATTEMPTS = 3;
+    private static final int BACKOFF_BASE_MS = 20;
+    private static final int BACKOFF_JITTER_MS = 30;
 
     private final SpringDataProductJpaRepository jpaRepository;
     private final EntityManager entityManager;
@@ -107,6 +112,81 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
         JPAProductEntity merged = entityManager.merge(edited);
         entityManager.flush();
         return Either.right(ProductMapper.toDomain(merged));
+    }
+
+    /**
+     * Checkout stock decrement with a bounded optimistic retry (US-22). The whole retry loop runs
+     * inside <em>one</em> {@code transactionTemplate.execute} on the shared
+     * {@code REQUIRED}-propagation bean, so it joins the ambient checkout transaction: a later
+     * failure in the same Unit of Work (a declined payment) rolls this decrement back automatically,
+     * with no compensating stock logic. Deliberately not {@code REQUIRES_NEW}: an independent
+     * committing transaction would keep the decrement durable even when the payment later fails,
+     * breaking the CA's "rollback restores stock automatically" design.
+     *
+     * <p><strong>Conflict detection is a zero-row native UPDATE, never a thrown
+     * {@code OptimisticLockException}.</strong> Each attempt re-reads the live row, applies the pure
+     * {@link Product#decreaseStock(int)} rule (a quantity the stock cannot satisfy yields
+     * {@link Failure.InsufficientStock}/{@link Failure.InvalidStock} — returned immediately, never
+     * retried), then issues a versioned {@code UPDATE ... SET stock = stock - ?, version = version + 1
+     * WHERE sku = ? AND version = ?} (see
+     * {@link SpringDataProductJpaRepository#decreaseStockIfVersionMatches}). A concurrent writer that
+     * advanced the version makes that statement match <em>zero rows</em> — a normal, successful
+     * statement that neither aborts the transaction nor marks it rollback-only. That is the crucial
+     * difference from a managed {@code merge}/{@code flush}: its {@code OptimisticLockException} marks
+     * the whole transaction rollback-only per the JPA spec, so an in-transaction retry is impossible
+     * (the eventual {@code commit} throws {@code UnexpectedRollbackException} — proven by
+     * {@code PurchaseProductServiceIT}). The zero-row result maps to
+     * {@link Failure.ConcurrentStockConflict} and is retried within the same transaction. Each retry
+     * first calls {@code entityManager.clear()}: a JPQL {@code findBySku} would otherwise return the
+     * row still managed in the persistence context from the previous attempt (Hibernate keeps the
+     * managed instance and ignores the freshly-read columns), so the re-read must start from an empty
+     * context to observe the winner's committed version under {@code READ COMMITTED}. After
+     * {@value #MAX_DECREASE_ATTEMPTS} exhausted attempts the conflict is returned as-is. The whole
+     * flow is exception-free — there is no try/catch anywhere in the checkout story.</p>
+     */
+    @Override
+    public Either<Failure, Product> decreaseStock(SKU sku, int quantity) {
+        return transactionTemplate.execute(status -> attemptDecrease(sku, quantity));
+    }
+
+    private Either<Failure, Product> attemptDecrease(SKU sku, int quantity) {
+        Either<Failure, Product> outcome = decreaseOnce(sku, quantity);
+        for (int attempt = 2; attempt <= MAX_DECREASE_ATTEMPTS && isConflict(outcome); attempt++) {
+            backoff();
+            entityManager.clear();
+            outcome = decreaseOnce(sku, quantity);
+        }
+        return outcome;
+    }
+
+    private Either<Failure, Product> decreaseOnce(SKU sku, int quantity) {
+        return Option.ofOptional(jpaRepository.findBySku(sku.value()))
+                .toEither(() -> (Failure) new Failure.ProductNotFound(sku))
+                .map(ProductMapper::toDomain)
+                .flatMap(current -> ensureSufficientStock(current, quantity)
+                        .flatMap(expectedVersion -> versionedDecrement(sku, quantity, expectedVersion)));
+    }
+
+    private static Either<Failure, Long> ensureSufficientStock(Product current, int quantity) {
+        return current.decreaseStock(quantity).map(validated -> current.version());
+    }
+
+    private Either<Failure, Product> versionedDecrement(SKU sku, int quantity, long expectedVersion) {
+        return io.vavr.collection.List.ofAll(
+                        jpaRepository.decreaseStockIfVersionMatches(sku.value(), quantity, Math.toIntExact(expectedVersion)))
+                .headOption()
+                .map(ProductMapper::toDomain)
+                .<Either<Failure, Product>>map(Either::right)
+                .getOrElse(() -> Either.left(new Failure.ConcurrentStockConflict(sku)));
+    }
+
+    private static boolean isConflict(Either<Failure, Product> outcome) {
+        return outcome.isLeft() && outcome.getLeft() instanceof Failure.ConcurrentStockConflict;
+    }
+
+    private static void backoff() {
+        Try.run(() -> Thread.sleep(BACKOFF_BASE_MS + ThreadLocalRandom.current().nextInt(BACKOFF_JITTER_MS)))
+                .onFailure(interrupted -> Thread.currentThread().interrupt());
     }
 
     @Override
