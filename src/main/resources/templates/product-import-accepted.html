@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!--/*
+  CSV import accepted (US-16), rendered with HTTP 202. Confirms the job was queued and shows its
+  id (also machine-readable via the data-job-id attribute). The rich progress view is US-18.
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: page(title='Import queued', content=~{::section})}">
+<body>
+
+<section>
+    <div class="mx-auto max-w-2xl">
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-6">
+            <h1 class="text-xl font-semibold tracking-tight text-emerald-900">Import queued</h1>
+            <p class="mt-2 text-sm text-emerald-800">Your CSV was accepted and will be processed in the background.</p>
+            <p class="mt-4 text-sm text-emerald-800">Job id:
+                <code class="rounded bg-white px-2 py-1 font-mono text-emerald-900"
+                      th:attr="data-job-id=${jobId}" th:text="${jobId}">job-id</code>
+            </p>
+        </div>
+
+        <div class="mt-6">
+            <a href="/products"
+               class="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700">
+                Back to products
+            </a>
+        </div>
+    </div>
+</section>
+
+</body>
+</html>

@@ -14,8 +14,14 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: localhost:9092
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
 
 marketplace:
   outbox:
     relay:
       fixed-delay-ms: 1000
+  import:
+    storage-dir: ${java.io.tmpdir}/marketplace-imports
