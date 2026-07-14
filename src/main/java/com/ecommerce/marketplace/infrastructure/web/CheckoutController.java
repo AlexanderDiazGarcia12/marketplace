@@ -7,7 +7,9 @@ import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
 import com.ecommerce.marketplace.domain.model.order.Order;
 import com.ecommerce.marketplace.domain.model.order.PaymentToken;
 import com.ecommerce.marketplace.domain.model.product.SKU;
+import io.vavr.collection.Seq;
 import io.vavr.control.Either;
+import io.vavr.control.Validation;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -21,11 +23,20 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.UUID;
 
 /**
- * Minimal transactional checkout endpoint (US-22). {@code GET /checkout} renders a bare form;
- * {@code POST /checkout} runs the purchase Unit of Work and renders a plain result. The polished
- * checkout experience (idempotency key carried across resubmits, per-failure screens, a rich
- * confirmation page) is US-23's scope, not this story — this controller exists so the Unit of Work
- * is demonstrable end-to-end against real Postgres.
+ * Transactional checkout endpoint. {@code GET /checkout} renders the purchase form (optionally
+ * pre-filled from {@code sku}/{@code quantity}/{@code paymentToken} query params, always minting a
+ * fresh idempotency key); {@code POST /checkout} runs the purchase Unit of Work and renders a
+ * per-failure-differentiated result or a confirmation screen.
+ *
+ * <p><strong>Two distinct idempotency-key lifecycles across a rejected submit (US-23).</strong>
+ * A pure input-validation failure ({@code SKU.of}/{@code PaymentToken.of}/{@code IdempotencyKey.of}
+ * or a non-positive quantity) happens <em>before</em> {@link PurchaseProductService#purchase} is
+ * ever called, so the idempotency store was never touched: the form is re-rendered with the entered
+ * values and the <em>same</em> key carried in its hidden field, so fixing a typo and resubmitting is
+ * still logically one attempt. Any business failure after the purchase began has already committed
+ * the key (as {@code IN_PROGRESS}, or {@code COMPLETED} for a recorded decline), so reusing it can
+ * only replay the stored outcome or fail as duplicate/mismatch — never a real retry. Every such
+ * retry path therefore routes back through {@code GET /checkout}, which mints a brand-new key.</p>
  *
  * <p><strong>The transaction boundary lives here, not in the application service.</strong> The
  * application layer is Spring-free (no {@code TransactionTemplate}, forbidden by the ArchUnit gate),
@@ -54,6 +65,7 @@ public class CheckoutController {
 
     private static final String FORM_VIEW = "checkout";
     private static final String RESULT_VIEW = "checkout-result";
+    private static final String DEFAULT_PAYMENT_TOKEN = "approved-card";
 
     private final PurchaseProductService purchaseService;
     private final TransactionTemplate mainTransaction;
@@ -69,8 +81,15 @@ public class CheckoutController {
     }
 
     @GetMapping("/checkout")
-    public String checkoutForm(Model model) {
-        model.addAttribute("suggestedIdempotencyKey", UUID.randomUUID().toString());
+    public String checkoutForm(
+            @RequestParam(value = "sku", required = false) String sku,
+            @RequestParam(value = "quantity", required = false) Integer quantity,
+            @RequestParam(value = "paymentToken", required = false) String paymentToken,
+            Model model) {
+        model.addAttribute("sku", sku);
+        model.addAttribute("quantity", quantity != null ? quantity : 1);
+        model.addAttribute("paymentToken", paymentToken != null ? paymentToken : DEFAULT_PAYMENT_TOKEN);
+        model.addAttribute("idempotencyKey", UUID.randomUUID().toString());
         return FORM_VIEW;
     }
 
@@ -82,22 +101,42 @@ public class CheckoutController {
             @RequestParam("idempotencyKey") String idempotencyKey,
             Model model,
             HttpServletResponse response) {
-        Either<Failure, PurchaseCommand> command = buildCommand(sku, quantity, paymentToken, idempotencyKey);
-        Either<Failure, Order> result = command.flatMap(this::purchaseAtomically);
+        Validation<Seq<String>, PurchaseCommand> validation = validateForm(sku, quantity, paymentToken, idempotencyKey);
+        if (validation.isInvalid()) {
+            return renderFormWithErrors(validation.getError(), sku, quantity, paymentToken, idempotencyKey, model, response);
+        }
+        PurchaseCommand command = validation.get();
+        Either<Failure, Order> result = purchaseAtomically(command);
         result.peekLeft(failure -> recordRejectionIfDeclined(command, failure));
         return result.fold(
-                failure -> renderRejected(failure, model, response),
+                failure -> renderRejected(failure, sku, quantity, paymentToken, model, response),
                 order -> renderConfirmed(order, model, response));
     }
 
-    private Either<Failure, PurchaseCommand> buildCommand(String sku, int quantity, String paymentToken, String idempotencyKey) {
-        if (quantity <= 0) {
-            return Either.left(new Failure.InvalidOrderQuantity(quantity));
-        }
-        return SKU.of(sku)
-                .flatMap(parsedSku -> PaymentToken.of(paymentToken)
-                        .flatMap(parsedToken -> IdempotencyKey.of(idempotencyKey)
-                                .map(parsedKey -> new PurchaseCommand(parsedSku, quantity, parsedToken, parsedKey))));
+    private Validation<Seq<String>, PurchaseCommand> validateForm(
+            String sku, int quantity, String paymentToken, String idempotencyKey) {
+        Validation<String, SKU> validSku = Validation.fromEither(SKU.of(sku).mapLeft(CheckoutController::messageFor));
+        Validation<String, Integer> validQuantity = quantity > 0
+                ? Validation.valid(quantity)
+                : Validation.invalid(messageFor(new Failure.InvalidOrderQuantity(quantity)));
+        Validation<String, PaymentToken> validToken =
+                Validation.fromEither(PaymentToken.of(paymentToken).mapLeft(CheckoutController::messageFor));
+        Validation<String, IdempotencyKey> validKey =
+                Validation.fromEither(IdempotencyKey.of(idempotencyKey).mapLeft(CheckoutController::messageFor));
+        return Validation.combine(validSku, validQuantity, validToken, validKey)
+                .ap(PurchaseCommand::new);
+    }
+
+    private String renderFormWithErrors(
+            Seq<String> errors, String sku, int quantity, String paymentToken, String idempotencyKey,
+            Model model, HttpServletResponse response) {
+        response.setStatus(HttpStatus.UNPROCESSABLE_ENTITY.value());
+        model.addAttribute("errors", errors.asJava());
+        model.addAttribute("sku", sku);
+        model.addAttribute("quantity", quantity);
+        model.addAttribute("paymentToken", paymentToken);
+        model.addAttribute("idempotencyKey", idempotencyKey);
+        return FORM_VIEW;
     }
 
     private Either<Failure, Order> purchaseAtomically(PurchaseCommand command) {
@@ -108,13 +147,13 @@ public class CheckoutController {
         });
     }
 
-    private void recordRejectionIfDeclined(Either<Failure, PurchaseCommand> command, Failure failure) {
+    private void recordRejectionIfDeclined(PurchaseCommand command, Failure failure) {
         if (failure instanceof Failure.PaymentRejected) {
-            command.forEach(declined -> rejectionTransaction.execute(status -> {
-                Either<Failure, Order> outcome = purchaseService.recordRejection(declined);
+            rejectionTransaction.execute(status -> {
+                Either<Failure, Order> outcome = purchaseService.recordRejection(command);
                 outcome.peekLeft(ignored -> status.setRollbackOnly());
                 return outcome;
-            }));
+            });
         }
     }
 
@@ -128,16 +167,39 @@ public class CheckoutController {
         return RESULT_VIEW;
     }
 
-    private String renderRejected(Failure failure, Model model, HttpServletResponse response) {
+    private String renderRejected(
+            Failure failure, String sku, int quantity, String paymentToken,
+            Model model, HttpServletResponse response) {
         response.setStatus(statusFor(failure).value());
         model.addAttribute("outcome", "FAILED");
+        model.addAttribute("failureKind", kindFor(failure));
         model.addAttribute("message", messageFor(failure));
+        model.addAttribute("retrySku", sku);
+        model.addAttribute("retryQuantity", quantity);
+        model.addAttribute("retryPaymentToken", paymentToken);
+        if (failure instanceof Failure.InsufficientStock stock) {
+            model.addAttribute("requested", stock.requested());
+            model.addAttribute("available", stock.available());
+        }
         return RESULT_VIEW;
+    }
+
+    private static String kindFor(Failure failure) {
+        return switch (failure) {
+            case Failure.InsufficientStock ignored -> "INSUFFICIENT_STOCK";
+            case Failure.PaymentRejected ignored -> "PAYMENT_REJECTED";
+            case Failure.PaymentGatewayUnavailable ignored -> "GATEWAY_UNAVAILABLE";
+            case Failure.ConcurrentStockConflict ignored -> "CONCURRENT_CONFLICT";
+            case Failure.DuplicateOrderRequest ignored -> "DUPLICATE";
+            case Failure.IdempotencyKeyMismatch ignored -> "KEY_MISMATCH";
+            default -> "GENERIC";
+        };
     }
 
     private static HttpStatus statusFor(Failure failure) {
         return switch (failure) {
             case Failure.PaymentRejected ignored -> HttpStatus.PAYMENT_REQUIRED;
+            case Failure.PaymentGatewayUnavailable ignored -> HttpStatus.SERVICE_UNAVAILABLE;
             case Failure.InsufficientStock ignored -> HttpStatus.CONFLICT;
             case Failure.ConcurrentStockConflict ignored -> HttpStatus.CONFLICT;
             case Failure.DuplicateOrderRequest ignored -> HttpStatus.CONFLICT;
@@ -149,6 +211,8 @@ public class CheckoutController {
     private static String messageFor(Failure failure) {
         return switch (failure) {
             case Failure.PaymentRejected rejected -> rejected.reason();
+            case Failure.PaymentGatewayUnavailable ignored ->
+                    "The payment service is temporarily unavailable. No charge was made — please try again shortly.";
             case Failure.InsufficientStock stock ->
                     "Only " + stock.available() + " unit(s) of " + stock.sku().value() + " are available.";
             case Failure.ConcurrentStockConflict conflict ->
