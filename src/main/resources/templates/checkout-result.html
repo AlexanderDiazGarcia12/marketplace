@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!--/*
   Checkout outcome (US-23). One page, conditional content: a polished confirmation for a placed
-  order, and a per-Failure-variant screen (icon/colour/message) for every rejection. Only the
-  concurrent-conflict screen offers a pre-filled "Try again" that re-enters GET /checkout so a fresh
-  idempotency key is minted; the other rejections link to a blank form for the same reason.
+  order, and a per-Failure-variant screen (icon/colour/message) for every rejection. Every link back
+  to GET /checkout — pre-filled or blank — mints a fresh idempotency key. Retryable outcomes
+  (concurrent conflict, gateway unavailable) pre-fill the entered values since nothing was charged;
+  the rest link to a blank form since the prior attempt is a settled outcome, not a fluke to retry.
 */-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{fragments/layout :: page(title='Checkout result', content=~{::section})}">
@@ -96,7 +97,10 @@
             <p class="mt-4 text-sm text-orange-700">This is a temporary infrastructure problem, not a declined card.
                 Nothing was charged — please try again in a few moments.</p>
             <div class="mt-6">
-                <a href="/checkout" class="text-sm font-medium text-orange-800 hover:text-orange-600">&larr; Back to checkout</a>
+                <a th:href="@{/checkout(sku=${retrySku}, quantity=${retryQuantity}, paymentToken=${retryPaymentToken})}"
+                   class="inline-flex items-center rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-500">
+                    Try again
+                </a>
             </div>
         </div>
 
