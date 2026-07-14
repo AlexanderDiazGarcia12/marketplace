@@ -6,6 +6,7 @@ import com.ecommerce.marketplace.application.ports.in.command.ImportJobId;
 import com.ecommerce.marketplace.application.ports.out.EventPublisherPort;
 import com.ecommerce.marketplace.application.ports.out.ImportErrorRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobCounters;
+import com.ecommerce.marketplace.application.ports.out.ImportJobDetail;
 import com.ecommerce.marketplace.application.ports.out.ImportJobRepositoryPort;
 import com.ecommerce.marketplace.application.ports.out.ImportJobState;
 import com.ecommerce.marketplace.application.ports.out.ProductRepositoryPort;
@@ -22,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -141,9 +143,21 @@ public final class ProductImportConsumer {
 
     private void ingest(ImportJobId jobId) {
         resolveFile(jobId)
+                .andThen(file -> logProcessingStarted(jobId, file))
                 .flatMap(file -> streamChunks(jobId, file))
                 .onSuccess(totalRows -> complete(jobId, totalRows))
                 .onFailure(cause -> failJob(jobId, cause));
+    }
+
+    private void logProcessingStarted(ImportJobId jobId, Path file) {
+        log.info("CSV import audit event=processing_started jobId={} originalFilename=\"{}\" fileReference=\"{}\" startedAt={}",
+                jobId.value(), originalFilenameOf(jobId), file, Instant.now());
+    }
+
+    private String originalFilenameOf(ImportJobId jobId) {
+        return importJobRepository.detail(jobId)
+                .map(ImportJobDetail::originalFilename)
+                .getOrElse("unknown");
     }
 
     private Try<Path> resolveFile(ImportJobId jobId) {
@@ -195,16 +209,20 @@ public final class ProductImportConsumer {
     }
 
     private void complete(ImportJobId jobId, long totalRows) {
-        transactionTemplate.executeWithoutResult(status -> {
+        ImportJobCounters counters = transactionTemplate.execute(status -> {
             long rejected = importErrorRepository.countByJob(jobId);
             long accepted = totalRows - rejected;
-            importJobRepository.markCompleted(jobId, new ImportJobCounters(totalRows, accepted, rejected));
+            ImportJobCounters tally = new ImportJobCounters(totalRows, accepted, rejected);
+            importJobRepository.markCompleted(jobId, tally);
+            return tally;
         });
-        log.info("Import job {} completed ({} rows)", jobId.value(), totalRows);
+        log.info("CSV import audit event=processing_finished result=COMPLETED jobId={} originalFilename=\"{}\" total={} accepted={} rejected={} finishedAt={}",
+                jobId.value(), originalFilenameOf(jobId), counters.total(), counters.accepted(), counters.rejected(), Instant.now());
     }
 
     private void failJob(ImportJobId jobId, Throwable cause) {
-        log.error("Import job {} failed at the file level; marking FAILED", jobId.value(), cause);
         transactionTemplate.executeWithoutResult(status -> importJobRepository.markFailed(jobId));
+        log.error("CSV import audit event=processing_finished result=FAILED jobId={} originalFilename=\"{}\" finishedAt={}",
+                jobId.value(), originalFilenameOf(jobId), Instant.now(), cause);
     }
 }
