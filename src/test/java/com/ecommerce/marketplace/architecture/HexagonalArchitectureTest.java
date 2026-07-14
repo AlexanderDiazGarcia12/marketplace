@@ -35,7 +35,9 @@ class HexagonalArchitectureTest {
             "org.springframework..",
             "jakarta..",
             "com.fasterxml.jackson..",
+            "tools.jackson..",
             "org.hibernate..",
+            "org.apache.kafka..",
             "lombok.."
     };
 

@@ -126,4 +126,19 @@ public sealed interface Failure {
      */
     record IdempotencyKeyMismatch(IdempotencyKey idempotencyKey) implements Failure {
     }
+
+    // ---------------------------------------------------------------------
+    // Messaging / outbox failures (US-15).
+    // ---------------------------------------------------------------------
+
+    /**
+     * A domain event could not be prepared for the transactional outbox (e.g. the payload could
+     * not be serialized, or its event type has no Kafka topic mapping). A genuine failure of the
+     * {@code outbox_events} INSERT itself surfaces as a persistence exception on flush, rolling
+     * back the caller's ambient transaction, not as this variant — this one covers rejections
+     * decided before the insert is even attempted. {@code eventType} identifies the event that
+     * failed; {@code reason} is a short diagnostic.
+     */
+    record EventPublishFailed(String eventType, String reason) implements Failure {
+    }
 }

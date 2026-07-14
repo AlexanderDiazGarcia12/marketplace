@@ -12,3 +12,10 @@ spring:
     redis:
       host: localhost
       port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+
+marketplace:
+  outbox:
+    relay:
+      fixed-delay-ms: 1000
