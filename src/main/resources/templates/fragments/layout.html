@@ -11,7 +11,9 @@
   the dialect would add a dependency without buying anything this mechanism doesn't already do.
   Revisit if later stories introduce deeper layout nesting.
 */-->
-<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)">
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="page(title, content)"
+          th:replace="~{fragments/layout :: pageWithHead(title=${title}, content=${content}, head=~{})}"></th:block>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="pageWithHead(title, content, head)">
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -19,6 +21,9 @@
     <!--/* RF-5.1: Tailwind CSS CDN (JIT engine) — dynamic styling without a Node/npm build
       pipeline, appropriate for this project stage. See US-08 report for the trade-off discussion. */-->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!--/* Optional per-page head slot (e.g. US-18's meta-refresh while an import is in flight). The
+      2-arg page(...) fragment below passes the empty fragment here, so its callers are unaffected. */-->
+    <th:block th:replace="${head}"></th:block>
 </head>
 <body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
 

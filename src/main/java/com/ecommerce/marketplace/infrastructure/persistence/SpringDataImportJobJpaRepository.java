@@ -33,6 +33,15 @@ public interface SpringDataImportJobJpaRepository extends JpaRepository<ImportJo
     @Query(value = "SELECT status FROM import_jobs WHERE id = :jobId", nativeQuery = true)
     Optional<String> findStatusById(@Param("jobId") UUID jobId);
 
+    @Query(value = """
+            SELECT id, status, total_rows, accepted_rows, rejected_rows,
+                   original_filename, created_at, completed_at
+            FROM import_jobs
+            WHERE id = :jobId
+            """,
+            nativeQuery = true)
+    Optional<ImportJobDetailRow> findDetailById(@Param("jobId") UUID jobId);
+
     @Query(value = "SELECT file_reference FROM import_jobs WHERE id = :jobId", nativeQuery = true)
     Optional<String> findFileReferenceById(@Param("jobId") UUID jobId);
 

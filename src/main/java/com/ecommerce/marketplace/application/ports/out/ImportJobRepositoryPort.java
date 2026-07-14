@@ -9,8 +9,8 @@ import io.vavr.control.Option;
  * Output port for persisting asynchronous CSV import jobs (US-16/US-17).
  *
  * <p>Grown incrementally, matching the {@link ProductRepositoryPort} convention: US-16 added only
- * {@link #createPending}; US-17 adds the state transitions the row-by-row worker drives. Status
- * read queries for the UI (US-18) are still deferred to their own story.</p>
+ * {@link #createPending}; US-17 added the state transitions the row-by-row worker drives; US-18
+ * adds {@link #detail}, the full read projection the status view renders.</p>
  *
  * <p><strong>Atomic claim (idempotency guard).</strong> {@link #claimForProcessing} is a
  * compare-and-set from {@code PENDING} to {@code PROCESSING}: it returns {@code true} only for the
@@ -31,6 +31,14 @@ public interface ImportJobRepositoryPort {
     Either<Failure, ImportJobId> createPending(NewImportJob job);
 
     Option<ImportJobState> currentState(ImportJobId jobId);
+
+    /**
+     * Full read projection for the status view (US-18): state, counters, filename and timestamps.
+     * {@link Option#none()} when the job id is unknown — the use case turns that into
+     * {@code Failure.ImportJobNotFound}, mirroring the {@code Option → Either} pattern the read side
+     * uses elsewhere.
+     */
+    Option<ImportJobDetail> detail(ImportJobId jobId);
 
     /**
      * The stored file reference (the opaque handle US-16 wrote to {@code import_jobs.file_reference})
