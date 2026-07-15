@@ -1,0 +1,71 @@
+name: CI
+
+"on":
+  push:
+    branches: ["main", "develop", "feature/**", "fix/**", "chore/**"]
+  pull_request:
+    branches: ["main", "develop"]
+
+jobs:
+  build-test-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Start Postgres and Kafka
+        run: docker compose up -d --wait
+
+      - name: Run unit tests, integration tests and coverage report
+        run: ./mvnw -B verify
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          if [ -f target/site/jacoco/jacoco.csv ]; then
+            awk -F',' '
+              NR > 1 {
+                inst_m += $4; inst_c += $5
+                line_m += $8; line_c += $9
+                branch_m += $6; branch_c += $7
+              }
+              END {
+                printf "## JaCoCo coverage (unit + integration, merged)\n\n"
+                printf "| Metric | Covered | Missed | %% |\n"
+                printf "|---|---|---|---|\n"
+                printf "| Instructions | %d | %d | %.1f%% |\n", inst_c, inst_m, 100*inst_c/(inst_c+inst_m)
+                printf "| Lines | %d | %d | %.1f%% |\n", line_c, line_m, 100*line_c/(line_c+line_m)
+                printf "| Branches | %d | %d | %.1f%% |\n", branch_c, branch_m, 100*branch_c/(branch_c+branch_m)
+              }
+            ' target/site/jacoco/jacoco.csv >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco
+          retention-days: 14
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+          retention-days: 14
+
+      - name: Tear down Docker Compose
+        if: always()
+        run: docker compose down
