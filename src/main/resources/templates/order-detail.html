@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<!--/*
+  Admin order-detail page. Renders a single order resolved by GET /orders/{id} through
+  GetOrderUseCase. The "order" model attribute is an OrderDetailView projection, never the domain
+  Order aggregate. Each line's product name falls back to the SKU when the product has been
+  soft-deleted (historical orders reference SKUs no longer live), so every line still renders.
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: page(title='Order', content=~{::section})}">
+<body>
+
+    <section>
+        <nav class="mb-6 text-sm text-slate-500">
+            <a href="/orders" class="hover:text-slate-900">Orders</a>
+            <span class="mx-2 text-slate-300">/</span>
+            <span class="text-slate-700" th:text="${order.id}">order-id</span>
+        </nav>
+
+        <div class="sm:flex sm:items-start sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Order</h1>
+                <p class="mt-1 text-sm text-slate-500" th:text="${order.id}">order-id</p>
+            </div>
+            <div class="mt-3 sm:mt-0">
+                <span th:if="${order.status == 'CONFIRMED'}"
+                      class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700"
+                      th:text="${order.status}">CONFIRMED</span>
+                <span th:unless="${order.status == 'CONFIRMED'}"
+                      class="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-600"
+                      th:text="${order.status}">REJECTED</span>
+            </div>
+        </div>
+
+        <div class="mt-8 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 text-left font-semibold text-slate-600">Product</th>
+                        <th scope="col" class="px-4 py-3 text-left font-semibold text-slate-600">SKU</th>
+                        <th scope="col" class="px-4 py-3 text-right font-semibold text-slate-600">Qty</th>
+                        <th scope="col" class="px-4 py-3 text-right font-semibold text-slate-600">Unit price</th>
+                        <th scope="col" class="px-4 py-3 text-right font-semibold text-slate-600">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <tr th:each="line : ${order.lines}" class="hover:bg-slate-50">
+                        <td class="px-4 py-3 font-medium text-slate-900" th:text="${line.productName}">Product name</td>
+                        <td class="px-4 py-3 text-slate-500" th:text="${line.sku}">SKU-000</td>
+                        <td class="px-4 py-3 text-right text-slate-600" th:text="${line.quantity}">0</td>
+                        <td class="px-4 py-3 text-right text-slate-600" th:text="${line.unitPriceLabel}">$0.00</td>
+                        <td class="px-4 py-3 text-right font-medium text-slate-900" th:text="${line.subtotalLabel}">$0.00</td>
+                    </tr>
+                </tbody>
+                <tfoot class="border-t-2 border-slate-200 bg-slate-50">
+                    <tr>
+                        <td colspan="4" class="px-4 py-3 text-right text-sm font-semibold text-slate-600">Total</td>
+                        <td class="px-4 py-3 text-right text-base font-semibold text-slate-900" th:text="${order.totalLabel}">$0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="mt-10">
+            <a href="/orders"
+               class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                &larr; Back to orders
+            </a>
+        </div>
+    </section>
+
+</body>
+</html>
