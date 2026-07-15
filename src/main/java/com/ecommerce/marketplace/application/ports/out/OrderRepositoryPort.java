@@ -1,9 +1,12 @@
 package com.ecommerce.marketplace.application.ports.out;
 
+import com.ecommerce.marketplace.application.ports.query.Page;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
 import com.ecommerce.marketplace.domain.model.order.Order;
 import com.ecommerce.marketplace.domain.model.order.OrderId;
+import com.ecommerce.marketplace.domain.model.order.OrderStatus;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 
@@ -20,6 +23,14 @@ import io.vavr.control.Option;
  * (US-22) is idempotent: {@code orders.idempotency_key} is {@code UNIQUE}, so an order already
  * present for a key means the rejection was already recorded, and a retry must return it rather than
  * attempt a second insert that the constraint would reject.</p>
+ *
+ * <p>{@link #list(Option, PageRequest)} is the read-side counterpart, added for the admin order
+ * listing: a paginated {@link Page} of lightweight {@link OrderSummary} projections ordered by
+ * creation date descending, optionally filtered by {@link OrderStatus}. It deliberately never loads
+ * the {@link Order} aggregate nor fetch-joins {@code order_items} — that would force Hibernate to
+ * paginate the collection in memory — so it returns header projections with a scalar item count,
+ * matching the {@link ImportJobRepositoryPort#detail} read-model approach rather than the write
+ * aggregate.</p>
  */
 public interface OrderRepositoryPort {
 
@@ -28,4 +39,6 @@ public interface OrderRepositoryPort {
     Option<Order> findById(OrderId orderId);
 
     Option<Order> findByIdempotencyKey(IdempotencyKey idempotencyKey);
+
+    Either<Failure, Page<OrderSummary>> list(Option<OrderStatus> status, PageRequest pageRequest);
 }

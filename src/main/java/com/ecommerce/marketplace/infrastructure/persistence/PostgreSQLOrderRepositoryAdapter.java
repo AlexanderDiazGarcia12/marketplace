@@ -1,10 +1,16 @@
 package com.ecommerce.marketplace.infrastructure.persistence;
 
 import com.ecommerce.marketplace.application.ports.out.OrderRepositoryPort;
+import com.ecommerce.marketplace.application.ports.out.OrderSummary;
+import com.ecommerce.marketplace.application.ports.query.Page;
+import com.ecommerce.marketplace.application.ports.query.PageRequest;
 import com.ecommerce.marketplace.domain.failure.Failure;
 import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
 import com.ecommerce.marketplace.domain.model.order.Order;
 import com.ecommerce.marketplace.domain.model.order.OrderId;
+import com.ecommerce.marketplace.domain.model.order.OrderStatus;
+import io.vavr.collection.List;
+import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 import io.vavr.control.Option;
 import jakarta.persistence.EntityManager;
@@ -68,5 +74,16 @@ public final class PostgreSQLOrderRepositoryAdapter implements OrderRepositoryPo
     public Option<Order> findByIdempotencyKey(IdempotencyKey idempotencyKey) {
         return Option.ofOptional(jpaRepository.findByIdempotencyKeyWithItems(idempotencyKey.value()))
                 .map(OrderMapper::toDomain);
+    }
+
+    @Override
+    public Either<Failure, Page<OrderSummary>> list(Option<OrderStatus> status, PageRequest pageRequest) {
+        Seq<OrderSummary> content = List.ofAll(
+                        status.fold(
+                                () -> jpaRepository.findSummaries(pageRequest.size(), pageRequest.offset()),
+                                filter -> jpaRepository.findSummariesByStatus(filter.name(), pageRequest.size(), pageRequest.offset())))
+                .map(OrderMapper::toSummary);
+        long total = status.fold(jpaRepository::countAll, filter -> jpaRepository.countByStatus(filter.name()));
+        return Either.right(Page.of(content, pageRequest, total));
     }
 }
