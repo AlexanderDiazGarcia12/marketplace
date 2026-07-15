@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!--/*
+  Friendly HTTP 404 page for order detail. Served (with a real 404 status set by OrderController)
+  both when a well-formed id matches no order and when the URL segment is not a valid UUID at all —
+  never a stacktrace. The "orderId" model attribute is the raw path segment as typed, echoed back
+  for context.
+*/-->
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: page(title='Order not found', content=~{::section})}">
+<body>
+
+    <section>
+        <div class="mx-auto max-w-lg py-16 text-center">
+            <p class="text-sm font-semibold uppercase tracking-wide text-indigo-600">404</p>
+            <h1 class="mt-3 text-3xl font-semibold tracking-tight text-slate-900">Order not found</h1>
+            <p class="mt-4 text-sm text-slate-500">
+                We couldn't find an order for
+                <span class="font-medium text-slate-700" th:text="'“' + ${orderId} + '”'">“order-id”</span>.
+                It may not exist, or the id may be incorrect.
+            </p>
+            <div class="mt-8">
+                <a href="/orders"
+                   class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                    Back to orders
+                </a>
+            </div>
+        </div>
+    </section>
+
+</body>
+</html>

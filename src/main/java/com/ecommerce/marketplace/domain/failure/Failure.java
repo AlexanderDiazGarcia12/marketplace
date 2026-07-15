@@ -92,6 +92,15 @@ public sealed interface Failure {
     record ProductNotFound(SKU sku) implements Failure {
     }
 
+    /**
+     * No order exists for the given id — the read counterpart of {@link ProductNotFound} for the
+     * admin order-detail view. Carries the parsed {@link OrderId} (as {@link ProductNotFound}
+     * carries its {@code SKU}); a raw string that is not a valid UUID never reaches this point,
+     * it fails earlier as {@link InvalidOrderId}.
+     */
+    record OrderNotFound(OrderId orderId) implements Failure {
+    }
+
     /** There is not enough stock available to satisfy the requested quantity. */
     record InsufficientStock(SKU sku, int requested, int available) implements Failure {
     }

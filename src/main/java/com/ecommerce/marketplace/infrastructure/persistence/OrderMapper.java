@@ -1,14 +1,18 @@
 package com.ecommerce.marketplace.infrastructure.persistence;
 
+import com.ecommerce.marketplace.application.ports.out.OrderSummary;
 import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
 import com.ecommerce.marketplace.domain.model.order.Money;
 import com.ecommerce.marketplace.domain.model.order.Order;
 import com.ecommerce.marketplace.domain.model.order.OrderId;
 import com.ecommerce.marketplace.domain.model.order.OrderItem;
+import com.ecommerce.marketplace.domain.model.order.OrderStatus;
 import com.ecommerce.marketplace.domain.model.order.PaymentToken;
 import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.collection.List;
 import io.vavr.collection.Seq;
+
+import java.time.ZoneId;
 
 /**
  * Explicit bidirectional Data Mapper between the pure {@link Order} aggregate and its
@@ -47,6 +51,15 @@ final class OrderMapper {
                 entity.getStatus(),
                 new PaymentToken(entity.getPaymentToken()),
                 new IdempotencyKey(entity.getIdempotencyKey()));
+    }
+
+    static OrderSummary toSummary(OrderSummaryRow row) {
+        return new OrderSummary(
+                new OrderId(row.getId()),
+                OrderStatus.valueOf(row.getStatus()),
+                new Money(row.getTotalAmount()),
+                row.getCreatedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                row.getItemCount());
     }
 
     private static JPAOrderItemEntity toItemEntity(OrderItem item) {

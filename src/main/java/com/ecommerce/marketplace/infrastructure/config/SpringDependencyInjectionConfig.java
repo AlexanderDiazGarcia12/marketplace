@@ -3,8 +3,10 @@ package com.ecommerce.marketplace.infrastructure.config;
 import com.ecommerce.marketplace.application.ports.in.CreateProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.DeleteProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.GetImportJobStatusUseCase;
+import com.ecommerce.marketplace.application.ports.in.GetOrderUseCase;
 import com.ecommerce.marketplace.application.ports.in.GetProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.ImportProductsUseCase;
+import com.ecommerce.marketplace.application.ports.in.ListOrdersUseCase;
 import com.ecommerce.marketplace.application.ports.in.SearchProductUseCase;
 import com.ecommerce.marketplace.application.ports.in.UpdateProductUseCase;
 import com.ecommerce.marketplace.application.ports.out.EventPublisherPort;
@@ -19,8 +21,10 @@ import com.ecommerce.marketplace.application.service.CreateProductService;
 import com.ecommerce.marketplace.application.service.CsvProductRowValidator;
 import com.ecommerce.marketplace.application.service.DeleteProductService;
 import com.ecommerce.marketplace.application.service.GetImportJobStatusService;
+import com.ecommerce.marketplace.application.service.GetOrderService;
 import com.ecommerce.marketplace.application.service.GetProductService;
 import com.ecommerce.marketplace.application.service.ImportProductsService;
+import com.ecommerce.marketplace.application.service.ListOrdersService;
 import com.ecommerce.marketplace.application.service.PurchaseProductService;
 import com.ecommerce.marketplace.application.service.SearchProductService;
 import com.ecommerce.marketplace.application.service.UpdateProductService;
@@ -200,6 +204,16 @@ public class SpringDependencyInjectionConfig {
             SpringDataOrderJpaRepository orderJpaRepository,
             TransactionTemplate transactionTemplate) {
         return new PostgreSQLOrderRepositoryAdapter(entityManager, orderJpaRepository, transactionTemplate);
+    }
+
+    @Bean
+    ListOrdersUseCase listOrdersUseCase(OrderRepositoryPort orderRepository) {
+        return new ListOrdersService(orderRepository);
+    }
+
+    @Bean
+    GetOrderUseCase getOrderUseCase(OrderRepositoryPort orderRepository, ProductRepositoryPort productRepository) {
+        return new GetOrderService(orderRepository, productRepository);
     }
 
     @Bean
