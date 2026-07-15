@@ -15,19 +15,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.time.Duration;
 
 /**
- * Redis wiring for the read-through cache (US-14), active <strong>only</strong> under the
- * {@code cache} Spring profile. Spring Boot's {@code RedisAutoConfiguration} is excluded on
- * {@link com.ecommerce.marketplace.MarketplaceApplication} so that merely having
- * {@code spring-data-redis}/Lettuce on the classpath never eagerly builds a
- * {@link RedisConnectionFactory} — without that exclusion the app would try to reach Redis at
- * boot even when the profile is off, breaking startup when no Redis is running. Every Redis bean
- * therefore lives here behind {@code @Profile("cache")}: no profile, no connection factory, no
- * connection attempt.
- *
- * <p>A {@link StringRedisTemplate} is enough: the caching adapter stores cache entries as JSON
- * strings it serializes itself, so it never needs value serializers configured on the template.
- * RNF-2 keeps Redis a pure read cache — it is never a source of truth, a lock, or an idempotency
- * store.</p>
+ * Redis wiring for the read-through cache, active only under the {@code cache} Spring profile. Every
+ * Redis bean lives here behind {@code @Profile("cache")} (and {@code RedisAutoConfiguration} is
+ * excluded on {@link com.ecommerce.marketplace.MarketplaceApplication}) so the app never tries to
+ * reach Redis at boot when the profile is off. A {@link StringRedisTemplate} suffices because the
+ * caching adapter serializes its own JSON entries; Redis stays a pure read cache, never a source of
+ * truth, lock, or idempotency store.
  */
 @Configuration
 @Profile("cache")

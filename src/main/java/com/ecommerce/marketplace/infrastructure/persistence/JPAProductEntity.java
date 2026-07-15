@@ -19,22 +19,13 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
- * JPA mapping of the {@code products} table (V2/V3). Lives strictly inside
- * {@code infrastructure.persistence}: it never crosses into {@code domain} or the Thymeleaf
- * views — {@link ProductMapper} translates it to/from the pure {@code Product} aggregate.
- *
- * <p>Design notes tied to the physical schema:</p>
- * <ul>
- *   <li>{@code id} is the synthetic identity PK; {@code sku} is a {@code UNIQUE} column, not the PK.</li>
- *   <li>{@code version} carries {@code @Version} for optimistic locking; it defaults to 0 in the
- *       DB, matching the initial value Hibernate assigns on insert.</li>
- *   <li>{@code category} reuses the domain {@link Category} enum directly (no mirror enum) and maps
- *       to the native {@code product_category} type via {@code @JdbcTypeCode(NAMED_ENUM)}, which
- *       binds by {@link Enum#name()} — exactly the constant names V1 declared.</li>
- *   <li>{@code updated_at} is maintained by the {@code trg_products_set_updated_at BEFORE UPDATE}
- *       trigger, so it is {@code updatable = false} here: Java never writes it on update. Both
- *       timestamps and {@code created_at} are read back from the DB defaults after insert.</li>
- * </ul>
+ * JPA mapping of the {@code products} table, confined to {@code infrastructure.persistence}:
+ * {@link ProductMapper} translates it to/from the pure {@code Product} aggregate. {@code id} is the
+ * synthetic identity PK and {@code sku} a {@code UNIQUE} column; {@code version} carries
+ * {@code @Version} for optimistic locking; {@code category} maps to the native
+ * {@code product_category} enum by {@link Enum#name()}. {@code created_at}/{@code updated_at} are
+ * DB-maintained (a trigger refreshes {@code updated_at}), so they are {@code updatable = false} and
+ * read back after writes.
  */
 @Entity
 @Table(name = "products")
@@ -105,13 +96,11 @@ public class JPAProductEntity {
     /**
      * Builds a <em>detached</em> row that reuses this managed row's identity ({@code id}, {@code sku})
      * but carries the caller-supplied editable fields and the {@code expectedVersion} the editor
-     * loaded (US-11). Merging it makes Hibernate compare {@code expectedVersion} against the row's
-     * actual stored version: a concurrent edit that already advanced it raises an optimistic-lock
-     * failure the adapter translates to
-     * {@link com.ecommerce.marketplace.domain.failure.Failure.ConcurrentStockConflict} — never a
-     * silent lost update. The identity fields (and {@code deletedAt}, so a concurrent soft delete
-     * is never resurrected by an in-flight edit) are copied here rather than exposed through generic
-     * setters, keeping the entity's mutation surface closed.
+     * loaded. Merging it makes Hibernate compare {@code expectedVersion} against the stored version,
+     * so a concurrent edit that already advanced it raises an optimistic-lock failure the adapter
+     * translates to {@link com.ecommerce.marketplace.domain.failure.Failure.ConcurrentStockConflict}
+     * rather than a silent lost update. Identity fields (and {@code deletedAt}, so a concurrent soft
+     * delete is never resurrected) are copied here rather than exposed through generic setters.
      */
     JPAProductEntity editedTo(
             String name,
@@ -128,15 +117,11 @@ public class JPAProductEntity {
     }
 
     /**
-     * Stamps {@code deleted_at} in place on this <em>managed</em> row (US-12). Because the instance
-     * stays attached to the persistence context, Hibernate's dirty checking issues a versioned
-     * {@code UPDATE ... WHERE id = ? AND version = ?} on flush, advancing {@code @Version}
-     * automatically — no {@code detach}/{@code merge} dance is needed here (that is only required by
-     * {@link #editedTo} to reconcile the editor's expected version). The version bump is what closes
-     * the race with an in-flight edit: a concurrent edit carrying the pre-delete version can no
-     * longer merge, so it fails with an optimistic-lock conflict instead of resurrecting the row.
-     * Mutating {@code deletedAt} through this narrow method rather than a generic setter keeps the
-     * entity's mutation surface closed, matching the {@link #editedTo} convention.
+     * Stamps {@code deleted_at} in place on this <em>managed</em> row. Staying attached lets
+     * Hibernate's dirty checking flush a versioned {@code UPDATE ... WHERE id = ? AND version = ?}
+     * that advances {@code @Version} automatically — closing the race with an in-flight edit, whose
+     * stale-version merge can then no longer resurrect the row. Mutating {@code deletedAt} through
+     * this narrow method rather than a generic setter keeps the entity's mutation surface closed.
      */
     void markDeleted(OffsetDateTime deletedAt) {
         this.deletedAt = deletedAt;

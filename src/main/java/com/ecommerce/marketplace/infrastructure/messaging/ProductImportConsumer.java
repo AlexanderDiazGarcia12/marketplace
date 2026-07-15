@@ -28,42 +28,24 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Kafka consumer that performs the asynchronous, idempotent CSV ingestion (US-17). Subscribes to
- * {@code import-requested} — the topic the outbox relay (US-15) delivers {@code ImportRequested} to —
- * and never runs on the web thread, so the upload endpoint (US-16) stays responsive (RNF-2/RNF-3).
+ * Kafka consumer that performs asynchronous, idempotent CSV ingestion off the web thread, keeping
+ * the upload endpoint responsive. It subscribes to {@code import-requested} (the topic the outbox
+ * relay delivers {@code ImportRequested} to) with manual acknowledgement, acking the offset only
+ * after the whole file reaches a terminal state — so a mid-file crash triggers a real Kafka
+ * redelivery rather than a silent loss.
  *
- * <p><strong>Manual ack for genuine at-least-once.</strong> The container is configured for manual
- * acknowledgement; this listener acks the offset <em>only after</em> the whole file is processed and
- * the job reaches a terminal state. A crash mid-file leaves the offset unconfirmed, so Kafka
- * redelivers the same message — a real reprocess, never a silent loss.</p>
+ * <p>Three layers make a redelivery converge instead of duplicating: an atomic
+ * {@code PENDING → PROCESSING} claim ({@code claimForProcessing}) that only the first delivery wins;
+ * convergent writes ({@code upsertBySku} for valid rows, {@code recordRowError} with
+ * {@code ON CONFLICT DO NOTHING} for invalid ones); and counters derived once at end-of-file from the
+ * authoritative {@code import_job_errors} count rather than accumulated row-by-row.</p>
  *
- * <p><strong>Idempotency under redelivery.</strong> Three layers make a redelivery converge instead
- * of duplicating:</p>
- * <ol>
- *   <li><strong>Atomic claim.</strong> {@code claimForProcessing} is a {@code PENDING → PROCESSING}
- *       compare-and-set. Only the first delivery wins it; a redelivery of an already-terminal job
- *       is a no-op-and-ack, and a redelivery of a job still {@code PROCESSING} (a crashed prior run)
- *       is reprocessed from the start — safe precisely because of the next two layers.</li>
- *   <li><strong>Convergent writes.</strong> Valid rows go through {@code upsertBySku} (same data on
- *       re-apply, only the write counter {@code version} advances) and invalid rows through
- *       {@code recordRowError} ({@code ON CONFLICT DO NOTHING}), so neither duplicates on reprocess.</li>
- *   <li><strong>Counters written once, derived idempotently.</strong> Tallies are never accumulated
- *       row-by-row. At end-of-file the terminal transition derives {@code rejected} from the
- *       authoritative {@code import_job_errors} count, {@code total} from rows read this pass and
- *       {@code accepted = total − rejected} — so any full redelivery lands on the same numbers.</li>
- * </ol>
- *
- * <p><strong>Chunked, per-chunk transactions.</strong> The file is streamed in {@link #CHUNK_SIZE}-row
- * chunks (never fully in memory); each chunk runs in its own {@link TransactionTemplate} boundary. In
- * that transaction, valid rows are upserted and each emits a {@code ProductImported} through the same
- * outbox (shared Unit of Work with the upsert, per US-15/16), and invalid rows are recorded — so a
- * chunk commits atomically. A single bad row never aborts the file: it becomes an
- * {@code import_job_errors} row and the job still completes.</p>
- *
- * <p><strong>COMPLETED vs FAILED.</strong> A file streamed to the end is {@code COMPLETED} even with
- * rejected rows ({@code rejected_rows > 0}). {@code FAILED} is reserved for a whole-job fault — the
- * file cannot be opened/read from its {@code fileReference}, or an unexpected error interrupts the
- * pass — not for per-row validation.</p>
+ * <p>The file is streamed in {@link #CHUNK_SIZE}-row chunks (never fully in memory), each committed
+ * in its own {@link TransactionTemplate} boundary where valid rows are upserted and emit a
+ * {@code ProductImported} through the same outbox unit of work. A single bad row becomes an
+ * {@code import_job_errors} row without aborting the file, which still ends {@code COMPLETED};
+ * {@code FAILED} is reserved for a whole-job fault (the file cannot be opened/read, or an unexpected
+ * error interrupts the pass).</p>
  */
 public final class ProductImportConsumer {
 
@@ -183,10 +165,10 @@ public final class ProductImportConsumer {
 
     /**
      * A row that passes field validation can still be rejected downstream — most notably
-     * {@code upsertBySku} refusing to resurrect a soft-deleted SKU (US-12/US-17). That failure must
-     * count as rejected, not silently as accepted: {@code accepted = total − rejected} is derived
-     * purely from {@code import_job_errors}, so any downstream failure that isn't recorded there
-     * would inflate the accepted tally for a row nothing was actually written for.
+     * {@code upsertBySku} refusing to resurrect a soft-deleted SKU. That failure is recorded in
+     * {@code import_job_errors} so it counts as rejected; otherwise, since
+     * {@code accepted = total − rejected} is derived purely from that table, an unrecorded downstream
+     * failure would inflate the accepted tally for a row nothing was written for.
      */
     private Either<Failure, Void> upsertAndPublish(ImportJobId jobId, CsvProductRowReader.ParsedRow row, Product product) {
         Either<Failure, Void> result = productRepository.upsertBySku(product)

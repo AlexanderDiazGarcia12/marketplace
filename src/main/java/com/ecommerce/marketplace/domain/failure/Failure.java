@@ -9,13 +9,10 @@ import io.vavr.collection.Seq;
 /**
  * Sealed hierarchy of every business failure that can occur in the marketplace domain.
  *
- * <p>Failures are modeled as data, not exceptions: application and domain services return
- * {@code Either<Failure, T>} instead of throwing, and callers exhaustively pattern-match over
- * this sealed interface (enforced by the compiler via {@code permits} + {@code switch}).</p>
- *
- * <p>This type and all its variants live in {@code domain.failure} and have zero dependencies on
- * Spring, Jakarta, Jackson or Lombok — pure Java 25 + Vavr, consistent with the rest of the
- * domain layer. There is intentionally no {@code domain.exception} package: errors are values.</p>
+ * <p>Failures are modeled as data, not exceptions: services return {@code Either<Failure, T>}
+ * instead of throwing, and callers exhaustively pattern-match over this sealed interface. The
+ * whole hierarchy is plain Java + Vavr, with zero framework dependencies — errors are values,
+ * so there is intentionally no {@code domain.exception} package.</p>
  */
 public sealed interface Failure {
 
@@ -32,27 +29,15 @@ public sealed interface Failure {
     record InvalidSku(String raw) implements Failure {
     }
 
-    /**
-     * The raw weight (in kilograms) is missing, negative or unparsable.
-     * {@code raw} is the input value in its textual form as received, regardless of which
-     * {@code Weight.of(...)} overload produced this failure.
-     */
+    /** The raw weight (in kilograms) is missing, negative or unparsable; {@code raw} is the input in textual form. */
     record InvalidWeight(String raw) implements Failure {
     }
 
-    /**
-     * The raw monetary amount is missing, negative or unparsable.
-     * {@code raw} is the input value in its textual form as received, regardless of which
-     * {@code Money.of(...)} overload produced this failure.
-     */
+    /** The raw monetary amount is missing, negative or unparsable; {@code raw} is the input in textual form. */
     record InvalidMoney(String raw) implements Failure {
     }
 
-    /**
-     * The raw order id is missing or not a valid UUID.
-     * {@code raw} is the input value in its textual form as received, regardless of which
-     * {@code OrderId.of(...)} overload produced this failure.
-     */
+    /** The raw order id is missing or not a valid UUID; {@code raw} is the input in textual form. */
     record InvalidOrderId(String raw) implements Failure {
     }
 
@@ -85,19 +70,14 @@ public sealed interface Failure {
     }
 
     // ---------------------------------------------------------------------
-    // Catalog / inventory failures (US-03 mandated minimum set).
+    // Catalog / inventory failures.
     // ---------------------------------------------------------------------
 
     /** No product exists for the given SKU. */
     record ProductNotFound(SKU sku) implements Failure {
     }
 
-    /**
-     * No order exists for the given id — the read counterpart of {@link ProductNotFound} for the
-     * admin order-detail view. Carries the parsed {@link OrderId} (as {@link ProductNotFound}
-     * carries its {@code SKU}); a raw string that is not a valid UUID never reaches this point,
-     * it fails earlier as {@link InvalidOrderId}.
-     */
+    /** No order exists for the given id. */
     record OrderNotFound(OrderId orderId) implements Failure {
     }
 
@@ -118,26 +98,23 @@ public sealed interface Failure {
     }
 
     /**
-     * The uploaded CSV was rejected at the envelope level before any job was created (US-16):
-     * wrong file type/extension, missing or mismatched header line, empty file, or a size beyond
-     * the accepted limit. This is distinct from {@link InvalidCsvRow}, which reports a single
-     * malformed data row during the asynchronous per-row processing (US-17). {@code reason} is a
-     * short, user-facing diagnostic the upload form renders inline.
+     * The uploaded CSV was rejected at the envelope level before any job was created: wrong file
+     * type/extension, missing or mismatched header, empty file, or oversized. Distinct from
+     * {@link InvalidCsvRow}, which reports a single malformed data row during async processing.
+     * {@code reason} is a short, user-facing diagnostic the upload form renders inline.
      */
     record InvalidCsvUpload(String reason) implements Failure {
     }
 
     /**
-     * No import job exists for the given id, or the id in the status-view URL is not a valid UUID
-     * at all (US-18). {@code jobId} is the raw identifier as it appeared in the request, in textual
-     * form — the domain stays free of the application-layer {@code ImportJobId} type, exactly as the
-     * value-object validation failures above carry the raw {@code String} rather than the parsed VO.
+     * No import job exists for the given id, or the id in the status URL is not a valid UUID.
+     * {@code jobId} is the raw identifier as it appeared in the request, in textual form.
      */
     record ImportJobNotFound(String jobId) implements Failure {
     }
 
     // ---------------------------------------------------------------------
-    // Checkout / payment failures (US-03 mandated minimum set).
+    // Checkout / payment failures.
     // ---------------------------------------------------------------------
 
     /** The payment gateway rejected the payment attempt. */
@@ -146,9 +123,9 @@ public sealed interface Failure {
 
     /**
      * The payment gateway itself is unavailable — a transient infrastructure outage, not a
-     * customer-facing decline. Unlike {@link PaymentRejected} (the issuing bank refused the charge,
-     * a permanent business outcome for that attempt), the charge here was neither approved nor
-     * refused, so a retry once the gateway recovers is legitimate.
+     * customer-facing decline. Unlike {@link PaymentRejected} (a permanent decision for that
+     * attempt), the charge was neither approved nor refused, so a retry once the gateway
+     * recovers is legitimate.
      */
     record PaymentGatewayUnavailable(String reason) implements Failure {
     }
@@ -165,16 +142,15 @@ public sealed interface Failure {
     }
 
     // ---------------------------------------------------------------------
-    // Messaging / outbox failures (US-15).
+    // Messaging / outbox failures.
     // ---------------------------------------------------------------------
 
     /**
      * A domain event could not be prepared for the transactional outbox (e.g. the payload could
-     * not be serialized, or its event type has no Kafka topic mapping). A genuine failure of the
-     * {@code outbox_events} INSERT itself surfaces as a persistence exception on flush, rolling
-     * back the caller's ambient transaction, not as this variant — this one covers rejections
-     * decided before the insert is even attempted. {@code eventType} identifies the event that
-     * failed; {@code reason} is a short diagnostic.
+     * not be serialized, or its type has no Kafka topic mapping). A genuine failure of the
+     * {@code outbox_events} INSERT surfaces as a persistence exception on flush, not as this
+     * variant, which covers rejections decided before the insert is attempted. {@code eventType}
+     * identifies the event; {@code reason} is a short diagnostic.
      */
     record EventPublishFailed(String eventType, String reason) implements Failure {
     }

@@ -9,14 +9,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Spring Data JPA repository over {@code import_job_errors} (US-17).
- *
- * <p>Inserts go exclusively through {@link #insertIgnoringDuplicate}, a native
- * {@code INSERT ... ON CONFLICT (import_job_id, row_number) DO NOTHING} over the V6 unique
- * constraint: re-recording the same rejected row on an at-least-once redelivery is a silent no-op,
- * so a partially-processed job that is reprocessed from the start never duplicates error rows. The
- * reasons array is passed pre-serialized as a JSON string and cast to {@code jsonb}. Native (not
- * derived/JPQL) because {@code ON CONFLICT} and the {@code ::jsonb} cast have no JPQL equivalent.</p>
+ * Spring Data JPA repository over {@code import_job_errors}. Inserts go exclusively through
+ * {@link #insertIgnoringDuplicate}, a native {@code INSERT ... ON CONFLICT (import_job_id, row_number)
+ * DO NOTHING} so a reprocessed job never duplicates error rows; the reasons array is passed
+ * pre-serialized and cast to {@code jsonb}. Native (not derived/JPQL) because {@code ON CONFLICT} and
+ * the {@code ::jsonb} cast have no JPQL equivalent.
  */
 public interface SpringDataImportJobErrorJpaRepository extends JpaRepository<ImportJobErrorEntity, Long> {
 

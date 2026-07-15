@@ -20,33 +20,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * JPA mapping of the {@code orders} table (V8). Lives strictly inside
- * {@code infrastructure.persistence}: it never crosses into {@code domain}/{@code application} or
- * the views — {@link OrderMapper} translates it to/from the pure {@link com.ecommerce.marketplace.domain.model.order.Order}
- * aggregate so no {@code @Entity} escapes this package.
- *
- * <p>Design notes tied to the physical schema:</p>
- * <ul>
- *   <li>{@code id} is a client-assigned {@code UUID} PK ({@code OrderId.generate()} always mints it
- *       in the domain before persist), so it carries no {@code @GeneratedValue} — matching
- *       {@code ImportJobEntity}. The adapter writes through {@code EntityManager.persist}, which
- *       always INSERTs, so no {@code Persistable} dance is needed (unlike {@code IdempotencyKeyEntity},
- *       which routes through {@code JpaRepository.save}).</li>
- *   <li>{@code status} reuses the domain {@link OrderStatus} enum directly (no mirror enum) and maps
- *       to the native {@code order_status} type via {@code @JdbcTypeCode(NAMED_ENUM)} (binds by
- *       {@link Enum#name()} — {@code CONFIRMED}/{@code REJECTED}), matching the
- *       {@code products.category} convention.</li>
- *   <li>{@code created_at} is DB-defaulted ({@code now()}), so it is {@code insertable = false} and
- *       read back after insert.</li>
- *   <li>Line items are an owned {@code @OneToMany} with {@code cascade = ALL} + {@code orphanRemoval}:
- *       persisting the order cascades the inserts, matching the {@code order_items} rows being
- *       meaningless without their parent (the FK is {@code ON DELETE CASCADE}).</li>
- * </ul>
- *
- * <p>Accessors are package-private (Lombok {@code @Getter(PACKAGE)}) with no generic setters,
- * matching {@code JPAProductEntity}/{@code OutboxEventEntity} — the entity cannot leak out of this
- * package. Items are attached only through {@link #addItem(JPAOrderItemEntity)}, which keeps the
- * bidirectional back-reference consistent, keeping the mutation surface closed.</p>
+ * JPA mapping of the {@code orders} table, confined to {@code infrastructure.persistence}:
+ * {@link OrderMapper} translates it to/from the pure
+ * {@link com.ecommerce.marketplace.domain.model.order.Order} aggregate so no {@code @Entity} escapes
+ * this package. {@code id} is a client-assigned {@code UUID} PK (minted in the domain), so the
+ * adapter writes through {@code EntityManager.persist} with no {@code Persistable} dance;
+ * {@code status} maps to the native {@code order_status} enum by {@link Enum#name()}. Line items are
+ * an owned {@code @OneToMany} with {@code cascade = ALL} + {@code orphanRemoval}, attached only
+ * through {@link #addItem(JPAOrderItemEntity)} so the bidirectional back-reference stays consistent.
  */
 @Entity
 @Table(name = "orders")

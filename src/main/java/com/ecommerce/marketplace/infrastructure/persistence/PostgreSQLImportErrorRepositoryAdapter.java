@@ -13,23 +13,16 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * JPA adapter for {@link ImportErrorRepositoryPort} (US-17). The sole place where
- * {@code import_job_errors} rows are written.
- *
- * <p><strong>Idempotent insert.</strong> Delegates to
+ * JPA adapter for {@link ImportErrorRepositoryPort} — the sole place where {@code import_job_errors}
+ * rows are written. Inserts delegate to
  * {@link SpringDataImportJobErrorJpaRepository#insertIgnoringDuplicate}, whose
- * {@code ON CONFLICT (import_job_id, row_number) DO NOTHING} makes re-recording the same rejected
- * row on an at-least-once redelivery a silent no-op. Runs inside the US-17 worker's chunk
- * transaction. The accumulated reasons ({@code Seq<String>}) are serialized to a JSON array string
- * here and cast to {@code jsonb} by the query, mirroring {@code import_job_errors.error_reason}. A
- * serialization failure surfaces as {@link Failure.InvalidCsvRow} rather than a thrown exception,
- * keeping the worker's flow functional.</p>
+ * {@code ON CONFLICT DO NOTHING} makes re-recording the same rejected row on an at-least-once
+ * redelivery a silent no-op. Accumulated reasons are serialized to a JSON array here; a
+ * serialization failure surfaces as {@link Failure.InvalidCsvRow} rather than a thrown exception.
  *
- * <p><strong>Read-back (US-18).</strong> {@link #errorsFor} lists a job's rejected rows ordered by
- * {@code row_number} and deserializes each {@code error_reason} JSONB array back into a
- * {@code Seq<String>} with the same {@link ObjectMapper} used on write, so the status view renders
- * legible reasons rather than raw JSON. A row whose stored JSON is somehow unreadable degrades to a
- * single-element reason carrying the raw text instead of failing the whole listing.</p>
+ * <p>{@link #errorsFor} reads a job's rejected rows back, deserializing each {@code error_reason}
+ * with the same {@link ObjectMapper} used on write; a row whose stored JSON is unreadable degrades
+ * to a single reason carrying the raw text instead of failing the whole listing.</p>
  */
 public final class PostgreSQLImportErrorRepositoryAdapter implements ImportErrorRepositoryPort {
 

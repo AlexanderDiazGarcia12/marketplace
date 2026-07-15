@@ -29,44 +29,24 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 
 /**
- * Plain-Java implementation of {@link PurchaseProductUseCase} (US-22), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations here, keeping the application layer framework-free (enforced by
- * {@code HexagonalArchitectureTest}).
+ * Implementation of {@link PurchaseProductUseCase}. Opens no transaction of its own: the checkout
+ * controller wraps {@link #purchase(PurchaseCommand)} in the main Unit of Work and, on a declined
+ * payment, {@link #recordRejection(PurchaseCommand)} in a second independent {@code REQUIRES_NEW}
+ * transaction, keeping the mechanism in infrastructure.
  *
- * <p><strong>The transaction boundary is NOT here.</strong> {@code @Transactional}/
- * {@code TransactionTemplate} are Spring types forbidden in this layer, so this service opens no
- * transaction of its own — exactly like {@code ImportProductsService}. {@code CheckoutController}
- * wraps {@link #purchase(PurchaseCommand)} in the checkout Unit of Work (and, on a declined
- * payment, {@link #recordRejection(PurchaseCommand)} in a second, independent
- * {@code REQUIRES_NEW} transaction). The CA's phrase "@Transactional demarcado en application.service"
- * means "the whole purchase flow is one atomic Unit of Work", with the mechanism living in
- * infrastructure, mirroring {@code ImportProductsController}.</p>
+ * <p>{@link #purchase} runs one {@code flatMap} chain: begin idempotency &rarr; decrease stock
+ * (versioned UPDATE) &rarr; charge &rarr; build a {@code CONFIRMED} {@link Order} &rarr; save &rarr;
+ * publish {@code OrderPlaced} &rarr; complete the idempotency key with an order snapshot. Stock is
+ * decremented before the charge so a declined payment rolls the whole transaction back and undoes
+ * the decrement automatically, with no compensating stock logic. A decline returns
+ * {@code Either.left(PaymentRejected)} without persisting a {@code REJECTED} order or completing the
+ * key — those writes must survive the rollback and belong to the second transaction.</p>
  *
- * <p><strong>{@link #purchase} — the main-transaction flow, one {@code flatMap} chain, no
- * try/catch of business flow.</strong> begin idempotency &rarr; decrease stock (versioned UPDATE)
- * &rarr; charge &rarr; build a {@code CONFIRMED} {@link Order} &rarr; save it &rarr; publish
- * {@code OrderPlaced} to the outbox &rarr; complete the idempotency key with a snapshot of the
- * order. Stock is decremented <em>before</em> the charge on purpose: if the charge is declined the
- * caller rolls this whole transaction back and the decrement is undone automatically, with no
- * compensating stock logic. On a declined payment this method returns
- * {@code Either.left(PaymentRejected)} immediately and deliberately does <em>not</em> persist a
- * {@code REJECTED} order or complete the key — those writes must survive this transaction's
- * rollback, so they are the caller's second transaction's job.</p>
- *
- * <p><strong>{@link #recordRejection} — the compensating write.</strong> Not on the
- * {@link PurchaseProductUseCase} port: it is an infrastructure-orchestration detail (a second
- * physical transaction), not part of the stable public contract, so only the concrete type exposes
- * it. It re-reads the product for the price snapshot (the main transaction's decrement was rolled
- * back, so the aggregate is gone from the persistence context), builds a {@code REJECTED} order,
- * saves it and completes the key with a snapshot — so a retry with the same key is answered from
- * the recorded rejection instead of re-charging. Still 100% plain Java / Vavr.</p>
- *
- * <p><strong>Replay.</strong> When {@code begin} reports the key already {@code COMPLETED} (a
- * retry), {@link #replay} short-circuits: it re-reads the persisted order (the snapshot carries
- * only its id) and answers from the order's own {@code status} — {@code Right(order)} for a
- * confirmed purchase, {@code Left(PaymentRejected)} for a recorded rejection — without touching
- * stock, payment or the outbox again.</p>
+ * <p>{@link #recordRejection} is the compensating write, kept off the port as an infrastructure
+ * orchestration detail: it re-reads the product for the price snapshot, saves a {@code REJECTED}
+ * order and completes the key so a retry is answered from the recorded rejection instead of
+ * re-charging. {@link #replay} short-circuits an already-{@code COMPLETED} key by re-reading the
+ * persisted order and answering from its status, touching neither stock, payment nor the outbox.</p>
  */
 public final class PurchaseProductService implements PurchaseProductUseCase {
 

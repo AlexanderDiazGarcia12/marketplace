@@ -8,14 +8,9 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link CreateProductUseCase} (US-09), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations live here, keeping the application layer framework-free.
- *
- * <p>The command already carries validated domain value objects (the web layer accumulates
- * value-object failures with Vavr {@code Validation} before it can build the command), so the
- * only business outcomes this service produces are a persisted {@link Product} or a
- * {@link Failure.DuplicateSku} surfaced by the repository when the SKU already exists.</p>
+ * Implementation of {@link CreateProductUseCase}. The command already carries validated value
+ * objects, so the only outcomes are a persisted {@link Product} or a {@link Failure.DuplicateSku}
+ * surfaced by the repository when the SKU already exists.
  */
 public final class CreateProductService implements CreateProductUseCase {
 

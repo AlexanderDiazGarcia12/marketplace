@@ -13,15 +13,9 @@ import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link GetOrderUseCase}, wired via an explicit {@code @Bean} in
- * {@code infrastructure.config.SpringDependencyInjectionConfig}.
- *
- * <p>Reuses {@link OrderRepositoryPort#findById}, which already returns the full aggregate with its
- * lines, then enriches each line with the current catalog product name via
- * {@link ProductRepositoryPort#findBySku}. A soft-deleted product yields an empty name (the line
- * still renders from the immutable order snapshot), so a historical order referencing a since-deleted
- * SKU never breaks — the name is simply absent, matching {@link OrderLine}'s contract. Absence of the
- * order itself becomes {@code Failure.OrderNotFound} through the {@code Option → Either} read pattern.</p>
+ * Implementation of {@link GetOrderUseCase}. Reuses {@link OrderRepositoryPort#findById} for the
+ * order aggregate, then enriches each line with the current product name via
+ * {@link ProductRepositoryPort#findBySku} — empty when the product has since been deleted.
  */
 public final class GetOrderService implements GetOrderUseCase {
 

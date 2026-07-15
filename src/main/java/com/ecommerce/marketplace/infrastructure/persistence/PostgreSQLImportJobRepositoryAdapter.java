@@ -15,23 +15,17 @@ import jakarta.persistence.EntityManager;
 import java.time.OffsetDateTime;
 
 /**
- * JPA adapter for {@link ImportJobRepositoryPort} (US-16/US-17). The sole place where {@code import_jobs}
- * rows are written; maps the application-layer {@link NewImportJob} to {@link ImportJobEntity} via
- * {@link ImportJobMapper} so no {@code @Entity} escapes this package.
+ * JPA adapter for {@link ImportJobRepositoryPort} — the sole place where {@code import_jobs} rows are
+ * written; maps {@link NewImportJob} to {@link ImportJobEntity} via {@link ImportJobMapper} so no
+ * {@code @Entity} escapes this package.
  *
- * <p><strong>createPending — same Unit of Work as the outbox (US-16).</strong> The insert goes
- * through the ambient {@link EntityManager#persist}: this adapter opens no transaction of its own and
- * never uses {@code REQUIRES_NEW}, so it joins the web controller's transaction, the very one
- * {@code KafkaEventPublisherAdapter} joins for its outbox insert — making the {@code import_jobs} row
- * and the {@code ImportRequested} outbox row atomic.</p>
- *
- * <p><strong>State transitions (US-17).</strong> {@code claimForProcessing}/{@code markCompleted}/
- * {@code markFailed} are native guarded UPDATEs on {@link SpringDataImportJobJpaRepository}, executed
- * inside whatever transaction the US-17 worker has open. {@code claimForProcessing} is a
- * compare-and-set ({@code PENDING → PROCESSING}) whose {@code rowsAffected} distinguishes the single
- * winning consumer from every redelivery — the idempotency gate. {@code currentState} reads the raw
- * status label straight from the row and maps it to the application-visible {@link ImportJobState}
- * (never leaking the persistence-layer {@code ImportJobStatus}).</p>
+ * <p>{@code createPending} inserts through the ambient {@link EntityManager#persist}, opening no
+ * transaction of its own, so it joins the web controller's transaction — the same one the outbox
+ * insert joins, making the {@code import_jobs} row and the {@code ImportRequested} outbox row atomic.
+ * The state transitions are native guarded UPDATEs run inside the worker's transaction;
+ * {@code claimForProcessing} is a compare-and-set whose {@code rowsAffected} distinguishes the single
+ * winning consumer from every redelivery (the idempotency gate). {@code currentState} maps the raw
+ * status label to the application-visible {@link ImportJobState}, never leaking {@code ImportJobStatus}.</p>
  */
 public final class PostgreSQLImportJobRepositoryAdapter implements ImportJobRepositoryPort {
 

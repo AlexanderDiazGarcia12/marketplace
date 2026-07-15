@@ -16,21 +16,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * CSV bulk-upload endpoint (US-16). {@code GET /products/import} renders a minimal upload form;
- * {@code POST /products/import} accepts the multipart file, validates only the envelope
- * (type/header/size), stores it to a referenceable location and — inside one transaction — creates
- * the {@code PENDING} job and publishes {@code ImportRequested} through the outbox, then responds
- * {@code 202 Accepted} with the job id. Row-by-row ingestion is entirely off the web thread
- * (US-17), so the request never blocks on the import itself.
+ * CSV bulk-upload endpoint. {@code GET /products/import} renders an upload form;
+ * {@code POST /products/import} validates only the envelope (type/header), stores the file and —
+ * inside one transaction — creates the {@code PENDING} job and publishes {@code ImportRequested}
+ * through the outbox, then responds {@code 202 Accepted} with the job id. Row-by-row ingestion runs
+ * off the web thread, so the request never blocks on the import.
  *
- * <p><strong>Transactional boundary lives here, not in the application service.</strong> The
- * application layer is Spring-free (no {@code TransactionTemplate}, forbidden by the ArchUnit gate),
- * so the atomic Unit of Work shared by the job insert and the outbox insert is opened here, around
- * the whole {@code requestImport} call — the same mechanism {@code PostgreSQLProductRepositoryAdapter}
- * uses. File storage and envelope validation happen <em>before</em> the transaction: writing a file
- * is not a database operation and must not sit inside the DB transaction. If the transactional part
- * fails (e.g. the event cannot be prepared), the {@code Either.left} rolls the whole unit back, so a
- * {@code PENDING} job is never left without its event.</p>
+ * <p>The transaction boundary lives here because the application layer is Spring-free. File storage
+ * and envelope validation run before the transaction (writing a file is not a database operation);
+ * the atomic unit shared by the job insert and the outbox insert wraps the whole
+ * {@code requestImport} call, so a {@code PENDING} job is never left without its event.</p>
  */
 @Controller
 public class ImportProductsController {

@@ -13,64 +13,31 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Spring Data JPA adapter for {@link IdempotencyStorePort} (US-21). The sole place where
- * {@code idempotency_keys} rows are read/written; it maps every persistence type back to the
+ * Spring Data JPA adapter for {@link IdempotencyStorePort} — the sole place where
+ * {@code idempotency_keys} rows are read or written; maps every persistence type back to the
  * application-layer {@link IdempotencyRecord} via {@link IdempotencyKeyMapper} so no {@code @Entity}
- * escapes {@code infrastructure.persistence}.
+ * escapes this package. It is a pure key-lifecycle registry: it returns an {@link Either} describing
+ * the key's state and runs no business logic — the checkout caller decides how to react.
  *
- * <p><strong>This store is a pure key-lifecycle registry — it never runs business logic.</strong>
- * It only reads/writes rows and returns an {@link Either} describing the key's state; whether to
- * re-execute the purchase, answer from the snapshot, or reject the retry is a decision the future
- * checkout caller (US-22/23) makes by pattern-matching that {@code Either}. This adapter knows
- * nothing about payments, stock or orders.</p>
+ * <p>{@code begin(...)} does an unconditional INSERT of a fresh {@code IN_PROGRESS} row and catches
+ * the PK violation when the key already exists, so the UNIQUE B-Tree arbitrates concurrent same-key
+ * requests atomically (no SELECT-then-INSERT race). On an existing key the decision order is
+ * load-bearing: a request-hash mismatch is a client misuse ({@link Failure.IdempotencyKeyMismatch},
+ * 422); a matching hash still {@code IN_PROGRESS} means the original is in flight
+ * ({@link Failure.DuplicateOrderRequest}, 409); a matching {@code COMPLETED} answers the retry from
+ * the stored snapshot.</p>
  *
- * <p><strong>{@code begin(...)} — insert-first, PK arbitrates the race.</strong> The decision
- * mechanism is an unconditional INSERT of a fresh {@code IN_PROGRESS} row, catching the
- * primary-key violation when the key already exists — deliberately <em>not</em> SELECT-then-INSERT.
- * SELECT-then-INSERT has a time-of-check/time-of-use race: two concurrent requests for the same new
- * key both SELECT empty, both attempt the INSERT, and the loser hits an unhandled PK violation.
- * Insert-first lets the {@code idempotency_keys_pkey} UNIQUE B-Tree arbitrate atomically — exactly
- * one INSERT wins ({@code Either.right} with the fresh record), and the loser catches the violation
- * and falls through to the same SELECT-and-decide path any later retry takes. This mirrors
- * {@code PostgreSQLProductRepositoryAdapter.save}'s {@code DuplicateSku} detection.</p>
+ * <p>{@code complete(...)} is a native guarded {@code UPDATE ... WHERE status = 'IN_PROGRESS'} (see
+ * {@link SpringDataIdempotencyKeyJpaRepository#completeIfInProgress}), so a duplicate completion
+ * cannot overwrite an already-{@code COMPLETED} snapshot; it re-reads and returns the row either way
+ * (idempotent completion).</p>
  *
- * <p><strong>Decision tree on an existing key</strong> (order is load-bearing, per US-21's CA):</p>
- * <ol>
- *   <li>request-hash mismatch (any stored status) &rarr;
- *       {@code Either.left(new Failure.IdempotencyKeyMismatch(key))} (HTTP 422). Checked first
- *       because a different body under the same key is a client misuse independent of timing.</li>
- *   <li>hash matches, status {@code IN_PROGRESS} &rarr;
- *       {@code Either.left(new Failure.DuplicateOrderRequest(key))} (HTTP 409): the original
- *       purchase is still in flight.</li>
- *   <li>hash matches, status {@code COMPLETED} &rarr; {@code Either.right} with the stored snapshot,
- *       so the caller answers the retry without re-executing anything.</li>
- * </ol>
- *
- * <p><strong>{@code complete(...)} — guarded terminal transition.</strong> A native
- * {@code UPDATE ... WHERE key = ? AND status = 'IN_PROGRESS'} (see
- * {@link SpringDataIdempotencyKeyJpaRepository#completeIfInProgress}). The status guard is the same
- * hardening US-17 applied to {@code markCompleted}: a duplicate or out-of-order {@code complete()}
- * cannot overwrite an already-{@code COMPLETED} snapshot. When the guard matches nothing, the row is
- * re-read and returned as-is (idempotent completion — a genuine second {@code complete()} for a key
- * that is already terminal returns the existing snapshot rather than a phantom success). Note the
- * key-vanished fallback reuses {@link Failure.DuplicateOrderRequest} rather than a dedicated
- * "not found" variant — today unreachable (nothing deletes rows yet) and deferred with the same
- * reasoning as V7's documented TTL-cleanup tech debt: add a real variant when a deleter exists.</p>
- *
- * <p><strong>Transaction boundary: {@code begin()} always commits on its own; {@code complete()}
- * joins whatever transaction the caller has open.</strong> {@code begin()}'s insert-first race
- * arbitration only works if the failed INSERT's rollback stays local: catching a PK violation on
- * ambient {@code REQUIRED} propagation still marks the *caller's* physical transaction
- * rollback-only, so even the successful-replay branch of {@code begin()} would blow up with
- * {@code UnexpectedRollbackException} at the caller's own commit — turning the happy path of a
- * checkout's idempotent replay into a 500. {@code independentTransaction} therefore runs
- * {@code insertFresh} under {@code REQUIRES_NEW}: a losing INSERT rolls back its own isolated
- * physical transaction and the caller's transaction is untouched. This also fixes two same-call
- * INSERTs sharing one Hibernate session (an in-memory {@code NonUniqueObjectException} that never
- * reaches the real constraint) since {@code REQUIRES_NEW} suspends the caller's persistence context
- * and binds a fresh one. {@code complete()} deliberately stays {@code REQUIRED} — the response
- * snapshot must commit atomically with the business transaction it is completing, or a retry could
- * replay a "completed" purchase whose actual transaction rolled back.</p>
+ * <p>Transaction boundaries differ by operation. {@code begin()} runs its insert under
+ * {@code REQUIRES_NEW}: a losing INSERT must roll back its own isolated transaction, otherwise the PK
+ * violation would mark the caller's transaction rollback-only and turn a successful idempotent replay
+ * into a 500 (it also avoids two same-call INSERTs sharing one Hibernate session). {@code complete()}
+ * stays {@code REQUIRED} so the snapshot commits atomically with the business transaction it
+ * completes — a retry must never replay a purchase whose transaction rolled back.</p>
  */
 public final class PostgreSQLIdempotencyStoreAdapter implements IdempotencyStorePort {
 

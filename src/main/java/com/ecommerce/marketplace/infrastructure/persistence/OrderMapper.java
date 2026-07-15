@@ -15,16 +15,10 @@ import io.vavr.collection.Seq;
 import java.time.ZoneId;
 
 /**
- * Explicit bidirectional Data Mapper between the pure {@link Order} aggregate and its
- * {@link JPAOrderEntity}/{@link JPAOrderItemEntity} persistence rows. Hand-written and
- * package-private, matching the {@code ProductMapper}/{@code ImportJobMapper}/{@code IdempotencyKeyMapper}
- * convention — MapStruct is rejected in this project because it cannot see the entities'
- * package-private accessors — so Hibernate types never cross into {@code domain} or a view.
- *
- * <p>Value objects are reconstructed through their canonical constructors ({@code new SKU(...)},
- * {@code new Money(...)}, ...) rather than their {@code Either}-returning {@code of(...)} factories:
- * a row already written through a validated {@code Order} aggregate is well-formed by construction
- * and by the DB CHECK constraints, so there is no {@code Failure} to surface on the way back.</p>
+ * Hand-written, package-private Data Mapper between the pure {@link Order} aggregate and its
+ * JPA entities, so Hibernate types never cross into {@code domain} or a view. Value objects are
+ * rebuilt via their canonical constructors, not their validating factories — a persisted row is
+ * already well-formed, so there is no failure to surface on the way back.
  */
 final class OrderMapper {
 

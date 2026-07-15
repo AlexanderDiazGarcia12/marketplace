@@ -14,29 +14,17 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Drains {@code outbox_events} to Kafka out-of-process (US-15). Runs on a fixed schedule; each tick
- * claims a bounded batch of {@code PENDING} rows with {@code FOR UPDATE SKIP LOCKED} (so parallel
- * workers/overlapping ticks never contend), publishes each to its topic, and records the outcome.
+ * Drains {@code outbox_events} to Kafka out-of-process. Each scheduled tick claims a bounded
+ * ({@link #BATCH_SIZE}) batch of {@code PENDING} rows with {@code FOR UPDATE SKIP LOCKED} inside one
+ * short {@link TransactionTemplate} pass, so locks are held only while publishing that batch and
+ * released at commit; status transitions are written by mutating the managed entity (no setters).
  *
- * <p><strong>Transaction scoping.</strong> The whole batch runs inside one short
- * {@link TransactionTemplate} pass: the {@code FOR UPDATE} row locks are held only for the duration
- * of publishing one bounded batch, then released at commit. Batches are kept small
- * ({@link #BATCH_SIZE}) precisely to bound how long those locks are held under bursts. The row's
- * status transition is written by mutating the managed entity (dirty-checking flush at commit), the
- * same closed-mutation pattern the product entity uses — no generic setters.</p>
- *
- * <p><strong>Publish is synchronous inside the batch.</strong> {@code KafkaTemplate.send(...).get()}
- * blocks until the broker acks, so a row is marked {@code PUBLISHED} only after Kafka confirms
- * receipt — at-least-once by construction (a crash after the ack but before commit simply re-drains
- * and re-publishes the row, which is why US-17 makes every consumer idempotent). Because it blocks,
- * this runs off the web request thread by definition (it is a scheduled task, never the UI path).</p>
- *
- * <p><strong>Retry / poison-message handling.</strong> A failed publish bumps {@code retry_count}
- * and leaves the row {@code PENDING} so the next tick retries it — until {@link #MAX_RETRIES}, after
- * which the row is parked as {@code FAILED} (terminal) rather than retried forever. This bounds the
- * blast radius of a genuinely poisoned row (e.g. an unroutable payload) without silently losing it:
- * {@code FAILED} rows stay in the table for ops inspection/replay. A dead-letter topic or an
- * automatic replay path is deliberately out of scope for US-15 and left as documented debt.</p>
+ * <p>Publish is synchronous ({@code KafkaTemplate.send(...).get()} blocks until the broker acks), so
+ * a row is marked {@code PUBLISHED} only after Kafka confirms receipt — at-least-once by
+ * construction, which is why the consumer is idempotent. A failed publish bumps {@code retry_count}
+ * and leaves the row {@code PENDING} until {@link #MAX_RETRIES}, after which it is parked as terminal
+ * {@code FAILED} (kept in the table for ops inspection/replay) rather than retried forever. A
+ * dead-letter topic or automatic replay is out of scope.</p>
  */
 public final class OutboxRelayScheduler {
 

@@ -10,23 +10,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Spring Data JPA repository over {@code import_jobs} (US-17 state transitions).
- *
- * <p>The transitions the row-by-row worker drives are expressed as native, guarded UPDATEs rather
- * than load-mutate-flush so they are atomic compare-and-sets the database arbitrates:</p>
- * <ul>
- *   <li>{@link #claimForProcessing} — {@code PENDING → PROCESSING} guarded by the current status;
- *       its {@code rowsAffected} tells the single winner apart from every redelivery/concurrent
- *       worker that finds the job already past {@code PENDING}. This is the idempotency gate that
- *       stops two consumers ingesting the same file at once.</li>
- *   <li>{@link #markCompleted}/{@link #markFailed} — write the terminal status, counters and
- *       {@code completed_at} in one statement, guarded by {@code WHERE status = 'PROCESSING'} so a
- *       terminal transition can only apply on top of an in-flight job: two concurrent workers racing
- *       to different outcomes for the same job can no longer have the second silently overwrite the
- *       first's terminal state — only the winner's write takes effect.</li>
- * </ul>
- * The {@code CAST(... AS import_job_status)} matches the native enum type. Native (not JPQL) because
- * the enum cast and the conditional {@code WHERE status = 'PENDING'} guard have no JPQL equivalent.
+ * Spring Data JPA repository over {@code import_jobs}. The worker's state transitions are native
+ * guarded UPDATEs (rather than load-mutate-flush) so the database arbitrates them as atomic
+ * compare-and-sets: {@link #claimForProcessing} ({@code PENDING → PROCESSING}) whose
+ * {@code rowsAffected} tells the single winner from every redelivery — the idempotency gate — and
+ * {@link #markCompleted}/{@link #markFailed}, guarded by {@code WHERE status = 'PROCESSING'} so a
+ * terminal transition only applies on top of an in-flight job. Native because the enum cast and the
+ * conditional status guards have no JPQL equivalent.
  */
 public interface SpringDataImportJobJpaRepository extends JpaRepository<ImportJobEntity, UUID> {
 

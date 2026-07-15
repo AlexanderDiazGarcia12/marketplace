@@ -4,11 +4,10 @@ import com.ecommerce.marketplace.application.ports.in.command.ImportJobId;
 
 /**
  * The minimal shape the application layer hands {@link ImportJobRepositoryPort#createPending} to
- * open a new import job (US-16): a pre-generated {@link ImportJobId} plus the file reference and
- * original filename carried by {@code ImportProductsCommand}. The remaining {@code import_jobs}
- * columns (status, counters, timestamps) are DB-defaulted or set later by the US-17 worker, so they
- * are not part of this contract. The id is generated in the application service (not the adapter or
- * the DB) so the use case can return it immediately in the HTTP 202 response.
+ * open a new import job: a pre-generated {@link ImportJobId} plus the file reference and original
+ * filename. The id is generated in the application service (not the adapter or DB) so the use case
+ * can return it immediately in the HTTP 202 response; status, counters and timestamps are
+ * DB-defaulted or set later by the worker.
  */
 public record NewImportJob(ImportJobId id, String fileReference, String originalFilename) {
 

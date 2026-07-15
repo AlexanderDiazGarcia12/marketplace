@@ -9,14 +9,9 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link SearchProductUseCase} (US-13), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations live here, keeping the application layer framework-free.
- *
- * <p>Unlike the {@code Option → Either} query pattern of {@code GetProductService}, an empty result
- * set is not a {@link Failure}: it is a valid {@link Page} with zero elements. The command's own
- * construction guarantees a bounded {@code PageRequest}, so the use case simply forwards the
- * already-optional filters to the repository and relays its {@code Either}.</p>
+ * Implementation of {@link SearchProductUseCase}. An empty result set is a valid {@link Page} with
+ * zero elements, not a {@link Failure}. Forwards the command's optional filters and bounded page
+ * request to the repository and relays its result.
  */
 public final class SearchProductService implements SearchProductUseCase {
 

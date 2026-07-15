@@ -15,20 +15,10 @@ import io.vavr.control.Validation;
 
 /**
  * Validates one raw CSV data row into a {@link Product}, accumulating every field problem instead of
- * short-circuiting on the first — the same Vavr applicative strategy the web
- * {@code CreateProductCommandFactory} uses, so a row with several bad fields is rejected with all its
- * reasons at once. Each value-object factory returns {@code Either<Failure, T>}; {@code .toValidation()}
- * lifts it so {@link Validation#combine} gathers all {@link Failure}s into a single {@code Seq}.
- *
- * <p>The final type is {@code Validation<Seq<String>, Product>} (legible strings, not {@code Failure}):
- * {@code import_job_errors.error_reason} is a JSONB array of user-facing messages the US-18 status
- * view renders directly, so the accumulated {@code Seq<Failure>} is mapped to messages here rather
- * than leaking failure types across the layer. A valid row yields a {@link Product} with
- * {@code version = 0}; the actual write is an idempotent upsert that owns version accounting.</p>
- *
- * <p>Plain Java (no Spring), consistent with the rest of {@code application}: it is invoked by the
- * US-17 consumer per row and shares the {@code $}/thousands-separator cleaning with the web forms via
- * {@link CurrencyText}.</p>
+ * short-circuiting on the first: each value-object factory returns {@code Either<Failure, T>} and
+ * {@code .toValidation()} lifts it so {@link Validation#combine} gathers all {@link Failure}s at once.
+ * The result carries user-facing message strings rather than {@code Failure} types so the import
+ * status view can render them directly without leaking failure types across the layer.
  */
 public final class CsvProductRowValidator {
 

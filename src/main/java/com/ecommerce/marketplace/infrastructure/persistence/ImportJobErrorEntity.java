@@ -15,15 +15,13 @@ import org.hibernate.type.SqlTypes;
 import java.util.UUID;
 
 /**
- * JPA mapping of the {@code import_job_errors} table (V5/V6): one rejected CSV data row, keyed by
- * its 1-based line number within a job, with the accumulated validation reasons as a JSONB array.
- * Confined to {@code infrastructure.persistence} — never crosses into {@code domain}/{@code application}.
- *
- * <p>Rows are written exclusively through the native {@code INSERT ... ON CONFLICT DO NOTHING} on
- * {@link SpringDataImportJobErrorJpaRepository#insertIgnoringDuplicate}, so this mapping exists for
- * Hibernate's metamodel/{@code ddl-auto=validate} rather than for {@code persist}-based inserts; the
- * conflict-aware insert is the only path that keeps a partial redelivery from duplicating rows.
- * Accessors are package-private with no setters, matching the other entities.</p>
+ * JPA mapping of the {@code import_job_errors} table: one rejected CSV data row, keyed by its 1-based
+ * line number within a job, with the accumulated validation reasons as a JSONB array. Confined to
+ * {@code infrastructure.persistence}. Rows are written only through the native
+ * {@code INSERT ... ON CONFLICT DO NOTHING} on
+ * {@link SpringDataImportJobErrorJpaRepository#insertIgnoringDuplicate} (so a partial redelivery
+ * never duplicates rows); this mapping exists for Hibernate's metamodel and {@code ddl-auto=validate}
+ * rather than for {@code persist}-based inserts.
  */
 @Entity
 @Table(name = "import_job_errors")

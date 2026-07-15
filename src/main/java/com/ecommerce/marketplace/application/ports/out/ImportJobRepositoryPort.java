@@ -6,25 +6,19 @@ import io.vavr.control.Either;
 import io.vavr.control.Option;
 
 /**
- * Output port for persisting asynchronous CSV import jobs (US-16/US-17).
- *
- * <p>Grown incrementally, matching the {@link ProductRepositoryPort} convention: US-16 added only
- * {@link #createPending}; US-17 added the state transitions the row-by-row worker drives; US-18
- * adds {@link #detail}, the full read projection the status view renders.</p>
+ * Output port for persisting asynchronous CSV import jobs.
  *
  * <p><strong>Atomic claim (idempotency guard).</strong> {@link #claimForProcessing} is a
- * compare-and-set from {@code PENDING} to {@code PROCESSING}: it returns {@code true} only for the
- * single caller that won the transition, {@code false} for every redelivery/concurrent worker that
- * finds the job already past {@code PENDING}. The worker uses it to avoid two consumers ingesting
- * the same file at once; the loser inspects {@link #currentState} to decide whether to retry a
- * possibly-crashed {@code PROCESSING} run or no-op on an already-terminal job.</p>
+ * compare-and-set from {@code PENDING} to {@code PROCESSING}: it succeeds only for the single caller
+ * that won the transition, failing for every redelivery/concurrent worker that finds the job past
+ * {@code PENDING}, so two consumers never ingest the same file at once. The loser inspects
+ * {@link #currentState} to decide whether to retry a possibly-crashed run or no-op.</p>
  *
  * <p><strong>Terminal transitions write counters once.</strong> {@link #markCompleted} stamps
- * {@code COMPLETED} with the idempotently-derived {@link ImportJobCounters}; {@link #markFailed}
- * stamps {@code FAILED} for a whole-job error (unreadable file, unexpected fault) — never for a
- * single rejected row, which is captured in {@code import_job_errors} and still leaves the job
- * {@code COMPLETED}. Both also set {@code completed_at}. Re-running either against an already-terminal
- * job simply rewrites the same terminal state, so a redelivery stays convergent.</p>
+ * {@code COMPLETED} with the derived {@link ImportJobCounters}; {@link #markFailed} stamps
+ * {@code FAILED} for a whole-job error only, never a single rejected row (which is captured in
+ * {@code import_job_errors} and leaves the job {@code COMPLETED}). Re-running either against an
+ * already-terminal job rewrites the same state, so redelivery stays convergent.</p>
  */
 public interface ImportJobRepositoryPort {
 
@@ -33,16 +27,15 @@ public interface ImportJobRepositoryPort {
     Option<ImportJobState> currentState(ImportJobId jobId);
 
     /**
-     * Full read projection for the status view (US-18): state, counters, filename and timestamps.
+     * Full read projection for the status view: state, counters, filename and timestamps.
      * {@link Option#none()} when the job id is unknown — the use case turns that into
-     * {@code Failure.ImportJobNotFound}, mirroring the {@code Option → Either} pattern the read side
-     * uses elsewhere.
+     * {@code Failure.ImportJobNotFound}.
      */
     Option<ImportJobDetail> detail(ImportJobId jobId);
 
     /**
-     * The stored file reference (the opaque handle US-16 wrote to {@code import_jobs.file_reference})
-     * the worker re-opens to stream the CSV. {@link Option#none()} when the job id is unknown.
+     * The stored opaque file reference the worker re-opens to stream the CSV.
+     * {@link Option#none()} when the job id is unknown.
      */
     Option<String> fileReference(ImportJobId jobId);
 

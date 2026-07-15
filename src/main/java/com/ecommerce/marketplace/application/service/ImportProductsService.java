@@ -11,22 +11,15 @@ import com.ecommerce.marketplace.domain.failure.Failure;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link ImportProductsUseCase} (US-16), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations live here, keeping the application layer framework-free.
+ * Implementation of {@link ImportProductsUseCase}. The file was already validated and persisted on
+ * the web thread; this use case only records the job as {@code PENDING} and emits
+ * {@code ImportRequested} through the transactional outbox, returning the job id immediately so
+ * row-by-row ingestion can run off-band.
  *
- * <p>The envelope (file type/headers/size) was already validated on the web thread, which also
- * persisted the file and produced the {@code fileReference}; this use case only records the job as
- * {@code PENDING} and emits {@code ImportRequested} through the transactional outbox, then returns
- * the job id immediately. Row-by-row ingestion happens off-band in the US-17 consumer.</p>
- *
- * <p><strong>Atomicity is the caller's transaction.</strong> This service opens no transaction of
- * its own ({@code TransactionTemplate} is a Spring type, forbidden here). The {@code import_jobs}
- * insert and the outbox insert are made against the same ambient persistence context, so they are
- * atomic <em>only</em> when the caller (the web controller) wraps the whole {@code requestImport}
- * call in a transaction — exactly as {@code KafkaEventPublisherAdapter} documents. If the event
- * cannot be prepared, the {@code Either.left} short-circuits before publishing and the caller rolls
- * the whole unit of work back, so a {@code PENDING} job is never left without its event.</p>
+ * <p>It opens no transaction of its own: the {@code import_jobs} insert and the outbox insert share
+ * the caller's ambient persistence context, so they are atomic only when the web controller wraps
+ * the whole {@code requestImport} call in a transaction. A failed event short-circuits before
+ * publishing so a {@code PENDING} job is never left without its event.</p>
  */
 public final class ImportProductsService implements ImportProductsUseCase {
 

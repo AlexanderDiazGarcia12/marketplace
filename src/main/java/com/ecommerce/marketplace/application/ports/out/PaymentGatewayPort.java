@@ -6,13 +6,10 @@ import com.ecommerce.marketplace.domain.model.order.PaymentToken;
 import io.vavr.control.Either;
 
 /**
- * Output port for charging a payment (US-20/US-22).
- *
- * <p>Exact reference signature from the backlog: {@code charge(PaymentToken, Money):
- * Either<Failure, PaymentConfirmation>}. The fake deterministic gateway (US-20) will decide
- * approval/rejection from the {@code PaymentToken} prefix, but that semantics is confined to the
- * adapter — {@link PaymentToken} itself (US-02) stays a plain format-validated domain VO with no
- * knowledge of prefixes; this port and the domain never pattern-match on token content.</p>
+ * Output port for charging a payment. The fake deterministic gateway decides approval/rejection
+ * from the {@code PaymentToken} prefix, but that semantics is confined to the adapter:
+ * {@link PaymentToken} stays a plain format-validated domain VO, and neither this port nor the
+ * domain pattern-matches on token content.
  */
 public interface PaymentGatewayPort {
 

@@ -12,14 +12,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 /**
- * Product detail page (US-10). {@code GET /products/{sku}} renders a single product's properties.
- *
- * <p>Two paths lead to the same friendly HTTP 404 view (never a stacktrace): a well-formed SKU
- * that matches no live product ({@link Failure.ProductNotFound}), and a URL segment that is not a
- * valid SKU at all ({@link Failure.InvalidSku}). A string that cannot even be a SKU cannot
- * identify a stored product, so treating it as "not found" is the honest, user-facing outcome —
- * the whole flow stays inside Vavr's {@code Either}, so no invalid input ever escapes as an
- * unhandled exception.</p>
+ * Product detail page. {@code GET /products/{sku}} renders a single product's properties. A
+ * well-formed SKU matching no live product and a segment that is not a valid SKU both fold into the
+ * same friendly 404 view rather than a stacktrace.
  */
 @Controller
 public class ProductDetailController {

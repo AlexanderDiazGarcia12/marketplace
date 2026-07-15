@@ -54,36 +54,11 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Single composition root for {@code application.service} beans (US-05).
- *
- * <p>The {@code domain} and {@code application} layers are plain Java: no {@code @Service},
- * {@code @Component}, {@code @Repository} or any other Spring stereotype annotation may appear
- * in those packages (enforced by
- * {@code com.ecommerce.marketplace.architecture.HexagonalArchitectureTest}). Instead, every
- * concrete application service is wired here, in {@code infrastructure}, via an explicit
- * {@code @Bean} factory method that hand-assembles the service and its out-port dependencies.</p>
- *
- * <p>Convention for future stories (US-09, US-13, US-16/17, US-22) adding a service that
- * implements one of the {@code application.ports.in} use cases:</p>
- *
- * <pre>{@code
- * @Bean
- * CreateProductUseCase createProductUseCase(ProductRepositoryPort productRepository) {
- *     return new CreateProductService(productRepository);
- * }
- * }</pre>
- *
- * <p>The service class itself (e.g. {@code CreateProductService}) stays an unannotated plain
- * class in {@code application.service}; only this configuration class knows about Spring. This
- * keeps the core hexagon (domain + application) portable and testable without a Spring context,
- * while infrastructure remains the sole place where wiring decisions live.</p>
- *
- * <p>This class is intentionally near-empty until the first concrete service exists — there is
- * nothing to wire before US-09 introduces {@code CreateProductService}, and adapters for the
- * out-ports ({@code ProductRepositoryPort}, {@code OrderRepositoryPort},
- * {@code IdempotencyStorePort}, {@code PaymentGatewayPort}, {@code EventPublisherPort}) do not
- * exist yet either. Its purpose in this story is to establish the convention and package
- * location, not to register beans.</p>
+ * Single composition root for {@code application.service} beans. The {@code domain} and
+ * {@code application} layers stay plain Java with no Spring stereotype annotations (enforced by
+ * {@code HexagonalArchitectureTest}); every concrete service is instead hand-assembled here via
+ * explicit {@code @Bean} factory methods, keeping infrastructure the sole place wiring lives and the
+ * core hexagon portable and testable without a Spring context.
  */
 @Configuration
 public class SpringDependencyInjectionConfig {
@@ -95,13 +70,12 @@ public class SpringDependencyInjectionConfig {
     }
 
     /**
-     * Dedicated {@code REQUIRES_NEW} template for the checkout compensating write (US-22): after the
-     * main purchase transaction rolls back on a declined payment (restoring stock), this genuinely
-     * independent transaction persists the {@code REJECTED} order and completes the idempotency key,
-     * so those records survive the main transaction's rollback. {@code @Primary} on
-     * {@code marketplaceTransactionTemplate} keeps every existing {@code TransactionTemplate}
+     * Dedicated {@code REQUIRES_NEW} template for the checkout compensating write: after the main
+     * purchase transaction rolls back on a declined payment (restoring stock), this independent
+     * transaction persists the {@code REJECTED} order and completes the idempotency key so those
+     * records survive that rollback. {@code @Primary} keeps every other {@code TransactionTemplate}
      * injection resolving to the joining ({@code REQUIRED}) template; only {@code CheckoutController}
-     * asks for this one by name via {@code @Qualifier}.
+     * asks for this one by {@code @Qualifier}.
      */
     @Bean
     TransactionTemplate rejectionTransactionTemplate(PlatformTransactionManager transactionManager) {

@@ -8,10 +8,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Presentation-layer projection of an {@link ImportJobStatusReport} for the status view (US-18).
- * Keeps the application-layer report out of the Thymeleaf template and pre-computes everything the
- * template would otherwise need logic for: the per-state Tailwind badge classes, whether the job is
- * still in flight (drives the meta-refresh), and the formatted timestamps.
+ * Presentation-layer projection of an {@link ImportJobStatusReport} for the status view. Keeps the
+ * application-layer report out of the template and pre-computes the per-state Tailwind badge classes,
+ * the in-flight flag that drives the meta-refresh, and the formatted timestamps.
  */
 record ImportJobStatusView(
         String jobId,

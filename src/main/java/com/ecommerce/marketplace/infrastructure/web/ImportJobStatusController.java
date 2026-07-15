@@ -15,21 +15,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.UUID;
 
 /**
- * Import-job status page (US-18). {@code GET /products/import/{jobId}} renders the progress,
- * counters and per-row errors of an asynchronous CSV import, so an administrator can watch it
- * advance and correct the rejected rows.
- *
- * <p>Two paths lead to the same friendly HTTP 404 view (never a stacktrace): a well-formed job id
- * that matches no job ({@link Failure.ImportJobNotFound}), and a URL segment that is not a valid
- * UUID at all — a string that cannot even be an {@link ImportJobId} cannot identify a stored job,
- * so "not found" is the honest outcome. The parse stays inside Vavr, so a malformed id never
- * escapes as an unhandled exception, mirroring {@code ProductDetailController}'s {@code SKU.of}
- * handling.</p>
- *
- * <p>The template adds an HTML meta-refresh only while the job is in flight
- * ({@code PENDING}/{@code PROCESSING}); once terminal ({@code COMPLETED}/{@code FAILED}) it stops
- * refreshing a page that will no longer change — the simplest auto-refresh that satisfies the AC,
- * no JavaScript polling needed at this size.</p>
+ * Import-job status page. {@code GET /products/import/{jobId}} renders the progress, counters and
+ * per-row errors of an asynchronous CSV import so an administrator can watch it advance and correct
+ * rejected rows. A well-formed id matching no job and a segment that is not a valid UUID both fold
+ * into the same friendly 404 view. The template meta-refreshes only while the job is in flight
+ * ({@code PENDING}/{@code PROCESSING}) and stops once terminal.
  */
 @Controller
 public class ImportJobStatusController {
