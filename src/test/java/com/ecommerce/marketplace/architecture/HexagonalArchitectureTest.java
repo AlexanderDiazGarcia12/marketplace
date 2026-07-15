@@ -38,6 +38,7 @@ class HexagonalArchitectureTest {
             "tools.jackson..",
             "org.hibernate..",
             "org.apache.kafka..",
+            "org.apache.commons.csv..",
             "lombok.."
     };
 

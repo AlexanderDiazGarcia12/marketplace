@@ -108,12 +108,40 @@ public sealed interface Failure {
     record InvalidCsvRow(int row, Seq<String> reasons) implements Failure {
     }
 
+    /**
+     * The uploaded CSV was rejected at the envelope level before any job was created (US-16):
+     * wrong file type/extension, missing or mismatched header line, empty file, or a size beyond
+     * the accepted limit. This is distinct from {@link InvalidCsvRow}, which reports a single
+     * malformed data row during the asynchronous per-row processing (US-17). {@code reason} is a
+     * short, user-facing diagnostic the upload form renders inline.
+     */
+    record InvalidCsvUpload(String reason) implements Failure {
+    }
+
+    /**
+     * No import job exists for the given id, or the id in the status-view URL is not a valid UUID
+     * at all (US-18). {@code jobId} is the raw identifier as it appeared in the request, in textual
+     * form — the domain stays free of the application-layer {@code ImportJobId} type, exactly as the
+     * value-object validation failures above carry the raw {@code String} rather than the parsed VO.
+     */
+    record ImportJobNotFound(String jobId) implements Failure {
+    }
+
     // ---------------------------------------------------------------------
     // Checkout / payment failures (US-03 mandated minimum set).
     // ---------------------------------------------------------------------
 
     /** The payment gateway rejected the payment attempt. */
     record PaymentRejected(String reason) implements Failure {
+    }
+
+    /**
+     * The payment gateway itself is unavailable — a transient infrastructure outage, not a
+     * customer-facing decline. Unlike {@link PaymentRejected} (the issuing bank refused the charge,
+     * a permanent business outcome for that attempt), the charge here was neither approved nor
+     * refused, so a retry once the gateway recovers is legitimate.
+     */
+    record PaymentGatewayUnavailable(String reason) implements Failure {
     }
 
     /** A request with this idempotency key is already being processed, or was replayed while in flight. */

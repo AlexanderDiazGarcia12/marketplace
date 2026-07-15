@@ -108,14 +108,14 @@ public final class RedisCachingProductRepositoryAdapter implements ProductReposi
         return delegate.update(product).peek(this::invalidate);
     }
 
-    /**
-     * Idempotent upsert-by-SKU is delivered by US-17. This decorator delegates it unchanged today.
-     * Whoever implements US-17 must also invalidate the cache after a successful upsert — mirror the
-     * {@code peek(this::invalidate)} used by {@link #save} and {@link #update} here.
-     */
     @Override
     public Either<Failure, Product> upsertBySku(Product product) {
-        return delegate.upsertBySku(product);
+        return delegate.upsertBySku(product).peek(this::invalidate);
+    }
+
+    @Override
+    public Either<Failure, Product> decreaseStock(SKU sku, int quantity) {
+        return delegate.decreaseStock(sku, quantity).peek(this::invalidate);
     }
 
     @Override
