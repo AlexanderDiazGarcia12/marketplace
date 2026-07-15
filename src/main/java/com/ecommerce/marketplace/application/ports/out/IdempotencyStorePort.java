@@ -5,12 +5,9 @@ import com.ecommerce.marketplace.domain.model.order.IdempotencyKey;
 import io.vavr.control.Either;
 
 /**
- * Output port for the purchase idempotency store (US-21).
- *
- * <p>State machine mandated by US-21's CA, implemented atomically by the adapter around the
- * table's natural primary key ({@code key VARCHAR(128) PRIMARY KEY} — no synthetic id, since the
- * key itself is the contention point and the PK gives sub-millisecond lookup and resolves
- * concurrent same-key races):</p>
+ * Output port for the purchase idempotency store. The adapter implements this state machine
+ * atomically around the key itself as primary key, giving fast lookup and resolving concurrent
+ * same-key races:
  * <ul>
  *   <li>new key -&gt; row inserted as {@code IN_PROGRESS}, returns {@code Either.right} with the
  *       fresh record;</li>

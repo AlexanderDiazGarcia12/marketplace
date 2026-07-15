@@ -6,10 +6,8 @@ import com.ecommerce.marketplace.domain.model.order.OrderStatus;
 import io.vavr.collection.Seq;
 
 /**
- * Read model for the admin order-detail view: the order header ({@code id}, {@code status},
- * {@code totalAmount}) plus its {@link OrderLine}s enriched with product names. Built by
- * {@code GetOrderService} from the {@link com.ecommerce.marketplace.domain.model.order.Order}
- * aggregate so the aggregate never crosses into the web layer, mirroring {@code ImportJobStatusReport}.
+ * Read model for the admin order-detail view: the order header plus its {@link OrderLine}s
+ * enriched with product names.
  */
 public record OrderDetail(OrderId id, OrderStatus status, Money totalAmount, Seq<OrderLine> lines) {
 

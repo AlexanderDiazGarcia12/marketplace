@@ -13,29 +13,23 @@ import java.util.Optional;
 public interface SpringDataProductJpaRepository extends JpaRepository<JPAProductEntity, Long> {
 
     /**
-     * Looks up a live product by SKU, excluding soft-deleted rows ({@code deleted_at IS NOT NULL}).
-     * A derived query name cannot express the {@code deletedAt IS NULL} predicate, so it is written
-     * out as JPQL. Soft delete itself is delivered by US-12; this query is already correct for it,
-     * so no retrofit is needed once deletion starts stamping {@code deleted_at}.
+     * Looks up a live product by SKU, excluding soft-deleted rows. A derived query name cannot
+     * express the {@code deletedAt IS NULL} predicate, so it is written as JPQL.
      */
     @Query("SELECT p FROM JPAProductEntity p WHERE p.sku = :sku AND p.deletedAt IS NULL")
     Optional<JPAProductEntity> findBySku(@Param("sku") String sku);
 
     /**
-     * Paginated catalog search (US-13), written as native SQL for two reasons the trgm GIN indexes
-     * from US-09 depend on:
+     * Paginated catalog search, written as native SQL for two reasons the trgm GIN indexes depend on:
      * <ul>
-     *   <li>{@code ILIKE '%term%'} on {@code name}/{@code description} keeps the column unwrapped
-     *       (no {@code LOWER(col)} that would defeat {@code idx_products_name_trgm} /
-     *       {@code idx_products_description_trgm}). pg_trgm's GIN index answers {@code ILIKE}
-     *       case-insensitively without any function on the column, so the predicate stays sargable.</li>
+     *   <li>{@code ILIKE '%term%'} on {@code name}/{@code description} keeps the column unwrapped (no
+     *       {@code LOWER(col)}), so the pg_trgm GIN index answers it case-insensitively and the
+     *       predicate stays sargable.</li>
      *   <li>The {@code category = CAST(:category AS product_category)} cast matches the native enum
-     *       type and lets the planner use the partial {@code idx_products_category
-     *       WHERE deleted_at IS NULL}.</li>
+     *       type and lets the planner use the partial category index.</li>
      * </ul>
-     * Absent filters are expressed with {@code :param IS NULL OR ...} so a single query serves the
-     * text-only, category-only, both, and neither cases. {@code deleted_at IS NULL} drops
-     * soft-deleted rows. Ordering is {@code name, id} for a deterministic, stable page window.
+     * Absent filters are expressed with {@code :param IS NULL OR ...} so one query serves every
+     * combination; soft-deleted rows are dropped and ordering is {@code name, id} for a stable page.
      */
     @Query(value = """
             SELECT * FROM products p
@@ -68,26 +62,13 @@ public interface SpringDataProductJpaRepository extends JpaRepository<JPAProduct
             @Param("category") String category);
 
     /**
-     * Idempotent upsert by SKU (US-17), the physical implementation of {@code
-     * ProductRepositoryPort.upsertBySku}. A single atomic {@code INSERT ... ON CONFLICT (sku) DO
-     * UPDATE} over {@code uq_products_sku} (US-09): a brand-new SKU inserts with {@code version = 0};
-     * a re-delivered/changed SKU updates every business field and bumps {@code version =
-     * products.version + 1}. The bump is done in SQL, entirely outside Hibernate's {@code @Version}
-     * lifecycle (this write never loads a managed entity), so checkout's optimistic locking stays
-     * correct — never {@code EXCLUDED.version}, never a reset. The V3 {@code BEFORE UPDATE} trigger
-     * still fires on the conflict path and refreshes {@code updated_at}.
-     *
-     * <p>The {@code WHERE products.deleted_at IS NULL} guard makes the upsert refuse to resurrect a
-     * soft-deleted product (US-12): a soft delete is a deliberate business decision an automated
-     * import must not silently revert. When the conflicting row is soft-deleted the DO UPDATE is
-     * skipped and — because the conflict was already resolved — no INSERT happens either, so {@code
-     * RETURNING} yields no row. The adapter reads that empty result as "no live row to upsert" and
-     * reports {@link com.ecommerce.marketplace.domain.failure.Failure.ProductNotFound}.
-     *
-     * <p>Native (not JPQL) because {@code ON CONFLICT}, the {@code product_category} enum cast and
-     * {@code RETURNING *} have no JPQL equivalent. {@code @Modifying(flushAutomatically = true,
-     * clearAutomatically = true)} keeps the persistence context consistent with the row this
-     * statement wrote directly in the database.
+     * Idempotent upsert by SKU: a single atomic {@code INSERT ... ON CONFLICT (sku) DO UPDATE}. A new
+     * SKU inserts with {@code version = 0}; a re-delivered SKU updates every business field and bumps
+     * {@code version = products.version + 1} in SQL, entirely outside Hibernate's {@code @Version}
+     * lifecycle, so checkout's optimistic locking stays correct. The {@code WHERE deleted_at IS NULL}
+     * guard refuses to resurrect a soft-deleted product: the DO UPDATE is skipped and {@code RETURNING}
+     * yields no row, which the adapter reads as {@link com.ecommerce.marketplace.domain.failure.Failure.ProductNotFound}.
+     * Native because {@code ON CONFLICT}, the enum cast and {@code RETURNING *} have no JPQL equivalent.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
@@ -115,19 +96,13 @@ public interface SpringDataProductJpaRepository extends JpaRepository<JPAProduct
             @Param("weightKg") BigDecimal weightKg);
 
     /**
-     * Versioned stock decrement for checkout (US-22), the physical implementation of
-     * {@code ProductRepositoryPort.decreaseStock}. An atomic {@code UPDATE ... SET stock = stock - ?,
-     * version = version + 1 WHERE sku = ? AND deleted_at IS NULL AND version = ?}: the caller has
-     * already validated (via the domain rule) that the row it read has enough stock, so a zero-row
-     * result means only that a concurrent writer advanced {@code version}. Returning zero rows is a
-     * normal statement outcome — not an {@code OptimisticLockException} — so it never marks the
-     * checkout transaction rollback-only, which is what makes the caller's in-transaction bounded
-     * retry possible (a managed {@code merge}/{@code flush} conflict would poison the whole
-     * transaction instead). The version bump is done in SQL, outside Hibernate's {@code @Version}
-     * lifecycle, exactly like {@link #upsertBySku}. {@code RETURNING *} hands the updated row back so
-     * the adapter maps the new state without a second read; {@code @Modifying(clearAutomatically =
-     * true)} keeps the persistence context consistent with the row this statement wrote directly,
-     * so the next retry's re-read sees fresh committed state.
+     * Versioned stock decrement for checkout: an atomic
+     * {@code UPDATE ... WHERE sku = ? AND deleted_at IS NULL AND version = ?}. The caller has already
+     * validated the row it read has enough stock, so a zero-row result means only that a concurrent
+     * writer advanced {@code version}. Returning zero rows is a normal outcome — not an
+     * {@code OptimisticLockException} — so it never marks the checkout transaction rollback-only, which
+     * is what makes the caller's in-transaction bounded retry possible. The version bump is done in SQL,
+     * outside Hibernate's {@code @Version} lifecycle; {@code RETURNING *} hands the updated row back.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """

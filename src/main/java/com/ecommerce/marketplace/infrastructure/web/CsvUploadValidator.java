@@ -10,15 +10,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Envelope-only validation of a CSV upload (US-16), before any job is created: presence, file
- * extension/content-type, and that the first line matches the expected product header. Deliberately
- * does <em>not</em> parse or validate data rows — that is the asynchronous US-17 concern; this only
- * confirms the upload is the right kind of file so the web thread can accept it and hand off.
- *
- * <p>Every rejection is returned as {@link Failure.InvalidCsvUpload} (a value the controller folds
- * inline), never thrown. The size ceiling is enforced by Spring's multipart limits configured in
- * {@code application.yaml}; a file exceeding them never reaches this validator (the container
- * rejects it first), so no byte-counting is duplicated here — only the empty-file case is guarded.</p>
+ * Envelope-only validation of a CSV upload before any job is created: presence, file extension, and
+ * that the first line matches the expected product header. Data rows are validated later by the
+ * asynchronous worker, so this only confirms the upload is the right kind of file. Every rejection is
+ * returned as {@link Failure.InvalidCsvUpload}, never thrown; the size ceiling is enforced upstream by
+ * Spring's multipart limits.
  */
 final class CsvUploadValidator {
 

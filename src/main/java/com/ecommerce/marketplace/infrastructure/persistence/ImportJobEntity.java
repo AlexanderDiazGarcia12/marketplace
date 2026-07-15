@@ -14,27 +14,12 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * JPA mapping of the {@code import_jobs} table (V5). Lives strictly inside
- * {@code infrastructure.persistence}: it never crosses into {@code domain}/{@code application} or
- * the views — {@link ImportJobMapper} builds it from the application-layer {@code NewImportJob}, and
- * only the created id is mapped back out.
- *
- * <p>Design notes tied to the physical schema:</p>
- * <ul>
- *   <li>{@code id} is a client-assigned {@code UUID} PK (generated in the application service so the
- *       use case can return it immediately), not DB- or Hibernate-generated. It is therefore an
- *       assigned identifier with no {@code @GeneratedValue}.</li>
- *   <li>{@code status} reuses the native {@code import_job_status} enum from V1 via
- *       {@code @JdbcTypeCode(NAMED_ENUM)} (binds by {@link Enum#name()}), matching the
- *       {@code products.category}/{@code outbox_events.status} convention (no mirror enum).</li>
- *   <li>The counters and {@code created_at} are DB-defaulted; {@code completed_at} is written by the
- *       US-17 worker on a terminal transition. This story only inserts a {@code PENDING} row, so it
- *       carries just the id, file reference, filename and status.</li>
- * </ul>
- *
- * <p>Accessors are package-private (Lombok {@code @Getter(PACKAGE)}) with no generic setters,
- * matching {@code JPAProductEntity}/{@code OutboxEventEntity} — the entity cannot leak out of this
- * package.</p>
+ * JPA mapping of the {@code import_jobs} table, confined to {@code infrastructure.persistence}:
+ * {@link ImportJobMapper} builds it from the application-layer {@code NewImportJob} and only the
+ * created id is mapped back out. {@code id} is a client-assigned {@code UUID} PK (minted in the
+ * application service so the use case can return it immediately), and {@code status} maps to the
+ * native {@code import_job_status} enum by {@link Enum#name()}. The insert only ever writes a
+ * {@code PENDING} row; counters and {@code completed_at} are set later by the async worker.
  */
 @Entity
 @Table(name = "import_jobs")

@@ -13,17 +13,14 @@ import io.vavr.control.Try;
 import io.vavr.control.Validation;
 
 /**
- * Turns a raw {@link ProductForm} into a validated {@link UpdateProductCommand}, accumulating every
- * field failure with Vavr {@link Validation} instead of short-circuiting — the same applicative
- * strategy {@link CreateProductCommandFactory} uses for creation, so an edit with several bad
- * fields reports them together in one round trip.
+ * Turns a raw {@link ProductForm} into a validated {@link UpdateProductCommand}, using Vavr
+ * {@link Validation} to accumulate every field failure so an edit with several bad fields reports
+ * them together in one round trip.
  *
- * <p>The {@link SKU} is not re-parsed from the form: it identifies the product and comes from the
- * URL path (already validated by the controller), so it is passed in. The hidden {@code version}
- * field is parsed here into the {@code expectedVersion} the optimistic check runs against; a
- * missing or malformed value is a tampered/expired form, surfaced as
- * {@link Failure.ConcurrentStockConflict} so the view offers a reload-and-retry rather than a
- * generic error.</p>
+ * <p>The {@link SKU} is passed in from the already-validated URL path rather than re-parsed. The
+ * hidden {@code version} field is parsed into the {@code expectedVersion} the optimistic check runs
+ * against; a missing or malformed value is surfaced as {@link Failure.ConcurrentStockConflict} so
+ * the view offers a reload-and-retry rather than a generic error.</p>
  */
 final class UpdateProductCommandFactory {
 

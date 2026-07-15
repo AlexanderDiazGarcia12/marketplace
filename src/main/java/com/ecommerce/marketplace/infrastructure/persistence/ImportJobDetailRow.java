@@ -4,12 +4,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Spring Data interface-based projection over the {@code import_jobs} columns the US-18 status view
- * needs. Native (not entity-backed) because the {@link ImportJobEntity} mapping deliberately covers
- * only the write columns US-16 inserts — reading the counters, {@code status} label and
- * {@code completed_at} through a projection keeps that entity untouched. Confined to
- * {@code infrastructure.persistence}: {@link ImportJobDetailRowMapper} turns it into the
- * application-layer {@code ImportJobDetail} so it never crosses the hexagon boundary.
+ * Spring Data interface-based projection over the {@code import_jobs} columns the status view needs.
+ * Native rather than entity-backed so the {@link ImportJobEntity} write mapping stays untouched;
+ * {@link ImportJobMapper} turns it into the application-layer {@code ImportJobDetail} so it never
+ * crosses the hexagon boundary.
  */
 interface ImportJobDetailRow {
 

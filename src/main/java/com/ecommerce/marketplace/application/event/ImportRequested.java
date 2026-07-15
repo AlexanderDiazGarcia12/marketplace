@@ -1,12 +1,10 @@
 package com.ecommerce.marketplace.application.event;
 
 /**
- * Raised when a CSV bulk-import job is accepted for asynchronous processing (adopted by US-16/17).
- * Keeps the web request responsive: the controller records the job and emits this event through
- * the outbox, and the actual chunked ingestion happens off the request thread once the relay
- * delivers it to Kafka. Carries the import job identifier a worker keys off; US-16/17 extend the
- * projection (source location, row count) as ingestion requires. US-15 fixes the event type and
- * aggregate binding so the outbox path is exercisable now.
+ * Raised when a CSV bulk-import job is accepted for asynchronous processing. Keeps the web request
+ * responsive: the job is recorded and this event emitted through the outbox, with chunked ingestion
+ * happening off the request thread once the relay delivers it to Kafka. Carries the import job
+ * identifier a worker keys off.
  */
 public record ImportRequested(String importJobId) implements DomainEvent {
 

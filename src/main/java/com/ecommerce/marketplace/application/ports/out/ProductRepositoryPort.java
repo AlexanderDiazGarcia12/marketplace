@@ -26,38 +26,31 @@ public interface ProductRepositoryPort {
     Either<Failure, Product> save(Product product);
 
     /**
-     * Idempotent upsert by SKU (US-17): re-applying the same payload converges to the same
-     * state rather than duplicating rows or erroring. Implementations back this with an atomic
+     * Idempotent upsert by SKU: re-applying the same payload converges to the same state rather
+     * than duplicating rows or erroring. Implementations back this with an atomic
      * {@code INSERT ... ON CONFLICT (sku) DO UPDATE}, incrementing {@code version} manually so
      * optimistic locking for checkout stays correct.
      */
     Either<Failure, Product> upsertBySku(Product product);
 
     /**
-     * Persists an edit to an existing product (US-11), re-applying every field of the already
-     * re-validated {@code product} aggregate. The aggregate carries the {@code version} the editor
-     * loaded, so implementations must run Hibernate's optimistic {@code @Version} check against it:
-     * a concurrent edit that advanced the stored row yields
-     * {@link Failure.ConcurrentStockConflict} (a lost update was prevented), and a SKU that no
-     * longer identifies a live row yields {@link Failure.ProductNotFound}. This replaces the
-     * earlier stock-only {@code updateStock} signature: the edit flow re-validates and persists the
-     * whole aggregate, not just stock, so the port receives the full domain object rather than a
-     * loose primitive triple.
+     * Persists an edit to an already re-validated product aggregate, which carries the {@code version}
+     * the editor loaded, so implementations run Hibernate's optimistic {@code @Version} check: a
+     * concurrent edit that advanced the stored row yields {@link Failure.ConcurrentStockConflict}
+     * (lost update prevented), and a SKU that no longer identifies a live row yields
+     * {@link Failure.ProductNotFound}.
      */
     Either<Failure, Product> update(Product product);
 
     /**
-     * Atomically decrements a live product's stock by {@code quantity} under optimistic locking,
-     * for the checkout Unit of Work (US-22). Distinct from {@link #update(Product)} on purpose: a
-     * concurrent stock change here is a normal, expected race that the implementation retries a
-     * bounded number of times (the buyer just lost a version bump, not an edit worth surfacing),
-     * whereas {@code update} must surface a conflict immediately to the editing admin rather than
-     * silently retry-and-clobber. On success returns the persisted {@link Product} at its new stock
-     * and bumped version; failures are {@link Failure.InsufficientStock} / {@link Failure.InvalidStock}
-     * (the requested quantity is impossible — never retried), {@link Failure.ProductNotFound} (no
-     * live row for the SKU) or {@link Failure.ConcurrentStockConflict} (the bounded retry was
-     * exhausted). The decrement joins the caller's ambient transaction, so a later failure in the
-     * same checkout (a declined payment) rolls the stock back automatically with no compensation.
+     * Atomically decrements a live product's stock by {@code quantity} under optimistic locking for
+     * the checkout Unit of Work. Distinct from {@link #update(Product)}: a concurrent stock change
+     * here is an expected race the implementation retries a bounded number of times, whereas
+     * {@code update} must surface a conflict immediately rather than retry-and-clobber. Failures are
+     * {@link Failure.InsufficientStock} / {@link Failure.InvalidStock} (impossible quantity, never
+     * retried), {@link Failure.ProductNotFound} (no live row) or {@link Failure.ConcurrentStockConflict}
+     * (bounded retry exhausted). The decrement joins the caller's ambient transaction, so a later
+     * checkout failure rolls the stock back automatically.
      */
     Either<Failure, Product> decreaseStock(SKU sku, int quantity);
 

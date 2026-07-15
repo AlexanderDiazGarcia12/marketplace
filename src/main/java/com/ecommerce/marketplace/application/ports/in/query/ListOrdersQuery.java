@@ -6,10 +6,7 @@ import io.vavr.control.Option;
 
 /**
  * Input query for {@link com.ecommerce.marketplace.application.ports.in.ListOrdersUseCase}.
- *
- * <p>{@code status} is an optional {@link OrderStatus} filter, modeled with {@link Option} rather
- * than a nullable field so the use case never null-checks — the empty case means "all statuses".
- * {@code pageRequest} bounds the result set, mirroring {@code SearchProductsCommand}.</p>
+ * {@code status} is an optional filter — empty means all statuses.
  */
 public record ListOrdersQuery(Option<OrderStatus> status, PageRequest pageRequest) {
 

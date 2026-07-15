@@ -7,15 +7,12 @@ import io.vavr.control.Try;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Jackson-backed {@link PurchaseSnapshotCodec} (US-22). Confines JSON (de)serialization of the
- * idempotency {@code response_snapshot} to {@code infrastructure}, exactly like {@code ProductCacheCodec}
- * and {@code KafkaEventPublisherAdapter} keep {@code tools.jackson} out of the hexagon. It maps to a
- * flat, infrastructure-owned {@link SnapshotDocument} DTO of plain Java types rather than serializing
- * the application record directly, so the persisted JSON shape stays an implementation detail.
- *
- * <p>Decoding rebuilds the {@link PurchaseSnapshot} through its validating constructor; a corrupt or
- * schema-drifted document surfaces as {@link Option#none()} (the checkout replay folds that into a
- * defensive failure) rather than a thrown exception crossing the port.</p>
+ * Jackson-backed {@link PurchaseSnapshotCodec} that confines JSON (de)serialization of the
+ * idempotency {@code response_snapshot} to {@code infrastructure}. It maps to a flat,
+ * infrastructure-owned {@link SnapshotDocument} DTO rather than serializing the application record
+ * directly, so the persisted JSON shape stays an implementation detail. Decoding rebuilds the
+ * {@link PurchaseSnapshot} through its validating constructor; a corrupt document surfaces as
+ * {@link Option#none()} rather than a thrown exception crossing the port.
  */
 public final class JacksonPurchaseSnapshotCodec implements PurchaseSnapshotCodec {
 

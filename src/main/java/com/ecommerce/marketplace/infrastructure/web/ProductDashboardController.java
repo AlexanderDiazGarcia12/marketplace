@@ -15,17 +15,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Dashboard / product-listing page (US-13). {@code GET /} and {@code GET /products} now render real,
- * paginated catalog results through {@link SearchProductUseCase}, replacing the static fixture the
- * US-08 shell carried as a placeholder.
- *
- * <p>The query parameters are all optional: {@code q} (free-text), {@code category} (a
- * {@link Category} label), and {@code page} (zero-based index). An unparseable {@code category}
- * is treated as "no category filter" rather than an error — the honest outcome for a dashboard
- * where filters are conveniences. The whole flow stays inside Vavr's {@code Either}: the use case
- * returns {@code Either<Failure, Page<Product>>}, folded here into the model — a {@code Failure}
- * degrades to an empty result view rather than a stacktrace, and the domain {@code Product} never
- * reaches the template ({@link ProductCardView} projects each row).</p>
+ * Dashboard / product-listing page. {@code GET /} and {@code GET /products} render paginated catalog
+ * results through {@link SearchProductUseCase}. The query parameters {@code q} (free-text),
+ * {@code category} and {@code page} are all optional; an unparseable {@code category} degrades to
+ * "no filter" and a {@link Failure} degrades to an empty result view rather than a stacktrace. The
+ * domain {@code Product} never reaches the template — {@link ProductCardView} projects each row.
  */
 @Controller
 public class ProductDashboardController {

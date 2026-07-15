@@ -9,23 +9,12 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * {@link EventPublisherPort} implementation that realises the transactional-outbox side of US-15:
- * {@code publish} <strong>inserts a row into {@code outbox_events}</strong> — it never talks to
- * Kafka. Delivery to Kafka is the out-of-process {@link OutboxRelayScheduler}'s job, so no dual
- * write and no network call happen inside the business transaction.
- *
- * <p><strong>Same Unit of Work.</strong> The insert is done through
- * the ambient {@link EntityManager} via {@code persist}: this adapter opens <em>no</em> transaction
- * of its own and never uses {@code REQUIRES_NEW}. When a use case calls {@code publish(...)} inside
- * its own {@code @Transactional}/{@code TransactionTemplate}, the outbox INSERT joins that same
- * transaction and shares its persistence context — so a rollback of the business operation reverts
- * the outbox row too, and a commit persists both atomically. The name {@code KafkaEventPublisher}
- * reflects the port's intent (events end up on Kafka), not an inline Kafka write.</p>
- *
- * <p>Failure handling stays functional: a Jackson serialization error (or an unmapped event type
- * with no destination topic) is returned as {@link Failure.EventPublishFailed}, never thrown across
- * the hexagon. A serialization failure here is a programming/data error, so the caller typically
- * rolls the whole business transaction back on it — exactly the atomicity the outbox guarantees.</p>
+ * Transactional-outbox {@link EventPublisherPort}: {@code publish} inserts a row into
+ * {@code outbox_events} through the ambient {@link EntityManager} and never talks to Kafka — delivery
+ * is the out-of-process {@link OutboxRelayScheduler}'s job. Because the insert joins the caller's
+ * open transaction (no {@code REQUIRES_NEW}), a business rollback reverts the outbox row too and a
+ * commit persists both atomically, avoiding a dual write. Serialization errors and unmapped event
+ * types are returned as {@link Failure.EventPublishFailed} rather than thrown across the hexagon.
  */
 public final class KafkaEventPublisherAdapter implements EventPublisherPort {
 

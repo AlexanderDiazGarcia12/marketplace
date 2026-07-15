@@ -32,37 +32,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration test for {@link PostgreSQLIdempotencyStoreAdapter} against the real Docker Compose
- * Postgres (Flyway builds the {@code idempotency_keys} table from V7; the DB is <em>not</em>
- * replaced by an embedded one). Exercises the four CA decision-tree branches plus the concurrent
- * same-key race the CA mandates the primary key resolve.
+ * Postgres. Exercises the four decision-tree branches plus the concurrent same-key race the
+ * primary key must resolve.
  *
- * <p>The class is {@code @DirtiesContext} because the concurrency test commits real rows across
- * threads (it cannot run inside the test-managed rollback), so it cleans up by key rather than
- * relying on transaction rollback.</p>
- *
- * <p>{@code spring.docker.compose.skip.in-tests} defaults to {@code true} — Boot's Docker Compose
- * support otherwise no-ops under any test runner, which is what leaves the datasource unconfigured
- * and fails {@code @DataJpaTest} with "Failed to determine a suitable driver class". It is
- * overridden here so this slice still auto-discovers the {@code compose.yaml} Postgres service
- * exactly like {@code spring-boot:run} does.</p>
- *
- * <p>{@code @Transactional(NOT_SUPPORTED)} overrides {@code @DataJpaTest}'s default of wrapping
- * each test method in one rolled-back transaction. Under that default, two sequential {@code
- * begin()} calls in the same test would share one Hibernate session, so the second call's INSERT
- * never reaches Postgres — Hibernate raises an in-memory {@code NonUniqueObjectException} the
- * moment it sees the same id already managed, before the real {@code idempotency_keys_pkey}
- * constraint the adapter is built around ever gets exercised. Production retries are separate HTTP
- * requests with independent persistence contexts, so disabling the shared per-method transaction
- * here is what makes the test faithful to that: every {@code begin()}/{@code complete()} call gets
- * its own transaction and commits for real, exactly as it would outside a test. {@link #cleanUp()}
- * deletes each test's key afterwards since rollback no longer does it.</p>
+ * <p>{@code @Transactional(NOT_SUPPORTED)} disables {@code @DataJpaTest}'s shared per-method
+ * rollback: otherwise two sequential {@code begin()} calls would share one Hibernate session and
+ * the second INSERT would raise an in-memory {@code NonUniqueObjectException} before the real
+ * {@code idempotency_keys_pkey} constraint is exercised. Every call thus gets its own transaction
+ * and commits for real, matching independent HTTP requests; {@link #cleanUp()} deletes each key
+ * afterwards.</p>
  *
  * <p>{@link #replayOfCompletedKeyInsideCallersAmbientTransactionCommitsWithoutRollback()} and
- * {@link #twoBeginsForSameNewKeyInsideOneAmbientTransactionStillResolveByPk()} cover the opposite
- * case: a caller (like the future US-22 checkout use case) that <em>does</em> wrap {@code begin()}
- * in its own business transaction. They open a real {@code TransactionTemplate} around the calls
- * to prove {@code insertFresh}'s {@code REQUIRES_NEW} keeps a losing INSERT's rollback local to its
- * own physical transaction instead of marking the caller's transaction rollback-only.</p>
+ * {@link #twoBeginsForSameNewKeyInsideOneAmbientTransactionStillResolveByPk()} cover a caller that
+ * wraps {@code begin()} in its own business transaction, proving {@code insertFresh}'s
+ * {@code REQUIRES_NEW} keeps a losing INSERT's rollback local instead of marking the caller's
+ * transaction rollback-only.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)

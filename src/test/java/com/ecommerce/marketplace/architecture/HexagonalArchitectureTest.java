@@ -10,21 +10,14 @@ import org.junit.jupiter.api.Test;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * Enforces the hexagonal boundary at build time (US-05): {@code domain} and {@code application}
- * must stay framework-free, and any concrete {@code application.service} must be wired via
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} rather than
- * discovered through {@code @Service}/{@code @Component} component-scanning.
+ * Enforces the hexagonal boundary at build time: {@code domain} and {@code application} must stay
+ * framework-free, and any concrete {@code application.service} must be wired via {@code @Bean} in
+ * {@code infrastructure.config.SpringDependencyInjectionConfig} rather than discovered through
+ * {@code @Service}/{@code @Component} component-scanning.
  *
- * <p>This is a real, working gate: it is expected to (and, at the time of writing, does) pass
- * against the US-02/US-03/US-04 code already on {@code develop}, proving the core is already
- * clean — the point of this test is to keep it that way as US-09 and later stories add real
- * service implementations and infrastructure adapters.</p>
- *
- * <p>Known limitation: ArchUnit analyzes compiled bytecode, so an <em>unused</em> import of a
- * forbidden package (no actual reference in the class body) will not trip these rules — only a
- * real dependency (a used type, a method call, an annotation) does. This is an acceptable
- * trade-off: the realistic violation this test guards against is an actual usage or a stereotype
- * annotation, both of which are verified to fail correctly.</p>
+ * <p>ArchUnit analyzes compiled bytecode, so an <em>unused</em> import of a forbidden package does
+ * not trip these rules — only a real dependency (a used type, a call, an annotation) does, which
+ * is the realistic violation worth guarding against.</p>
  */
 class HexagonalArchitectureTest {
 

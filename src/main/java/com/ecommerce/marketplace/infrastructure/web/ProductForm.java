@@ -2,14 +2,13 @@ package com.ecommerce.marketplace.infrastructure.web;
 
 /**
  * Raw, presentation-layer backing bean for the create- and edit-product forms. Holds untrusted
- * strings exactly as submitted; the controller turns them into validated domain value objects (via
- * the {@code of(...)} factories, accumulating failures with Vavr {@code Validation}) before any
- * {@code application} type is constructed. Mutable getters/setters are required by Spring MVC data
- * binding and Thymeleaf {@code th:field}; this bean never crosses into the hexagon.
+ * strings exactly as submitted; the controller turns them into validated domain value objects before
+ * any {@code application} type is constructed. Mutable getters/setters are required by Spring MVC
+ * data binding and Thymeleaf {@code th:field}; this bean never crosses into the hexagon.
  *
- * <p>{@code version} is the optimistic {@code @Version} carried as a hidden field on the edit form
- * (US-11): it round-trips the version the editor loaded so a concurrent edit is detected on submit.
- * Creation ignores it.</p>
+ * <p>{@code version} is the optimistic {@code @Version} carried as a hidden field on the edit form:
+ * it round-trips the version the editor loaded so a concurrent edit is detected on submit. Creation
+ * ignores it.</p>
  */
 public class ProductForm {
 

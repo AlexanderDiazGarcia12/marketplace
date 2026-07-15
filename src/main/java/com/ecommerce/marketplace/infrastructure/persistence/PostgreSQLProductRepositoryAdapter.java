@@ -22,36 +22,20 @@ import java.time.OffsetDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Spring Data JPA adapter for {@link ProductRepositoryPort}. The sole place where {@code products}
- * rows are read/written; it maps every persistence type back to pure domain objects via
- * {@link ProductMapper} so no {@code @Entity} escapes {@code infrastructure.persistence}.
+ * Spring Data JPA adapter for {@link ProductRepositoryPort} — the sole place where {@code products}
+ * rows are read or written; maps every persistence type back to pure domain objects via
+ * {@link ProductMapper} so no {@code @Entity} escapes this package.
  *
- * <p>US-09 exercises {@link #save(Product)} and {@link #findBySku(SKU)}. US-11 adds
- * {@link #update(Product)}: the <em>only</em> place in the whole hexagon that catches a persistence
- * exception. Hibernate's optimistic {@code @Version} check is translated here into
- * {@code Either.left(new Failure.ConcurrentStockConflict(sku))} — the business flow above this
- * adapter (application, web) stays exception-free and pattern-matches the {@code Failure} value.
- *
- * <p>US-12 adds {@link #softDelete(SKU)}: it loads the managed row (via {@code findBySku}, which
- * already filters {@code deleted_at IS NULL}), stamps {@code deleted_at} in place and lets
- * Hibernate's dirty checking flush a versioned UPDATE — advancing {@code @Version} so a concurrent
- * in-flight edit can no longer resurrect the row (its stale-version merge fails the optimistic
- * check instead). A SKU that no longer identifies a live row (never existed, or already deleted)
- * yields {@link Failure.ProductNotFound}, making the delete idempotent-friendly.
- *
- * <p>US-13 adds {@link #search(Option, Option, PageRequest)}: a native paginated query whose
- * {@code ILIKE '%term%'} predicate stays sargable so the trgm GIN indexes from US-09 remain usable
- * (see {@link SpringDataProductJpaRepository#search}). A separate count query supplies
- * {@code totalElements}; both filters are optional and soft-deleted rows are excluded.
- *
- * <p>US-17 adds {@link #upsertBySku(Product)}: an atomic native {@code INSERT ... ON CONFLICT (sku)
- * DO UPDATE} (see {@link SpringDataProductJpaRepository#upsertBySku}) that converges to the same
- * state on identical re-delivery (Kafka at-least-once) instead of duplicating or erroring. It bumps
- * {@code version = products.version + 1} in SQL, deliberately bypassing Hibernate's {@code @Version}
- * so checkout's optimistic locking is never invalidated. A conflict on a soft-deleted row is
- * refused (the DO UPDATE is guarded by {@code deleted_at IS NULL}), surfacing an empty {@code
- * RETURNING} that this adapter maps to {@link Failure.ProductNotFound} — an automated import does
- * not resurrect a deliberately deleted product.</p>
+ * <p>{@link #update(Product)} is the only place in the hexagon that catches a persistence exception:
+ * Hibernate's optimistic {@code @Version} check is translated into
+ * {@link Failure.ConcurrentStockConflict} so the layers above stay exception-free.
+ * {@link #softDelete(SKU)} stamps {@code deleted_at} on the managed row and lets dirty checking flush
+ * a versioned UPDATE, so a concurrent in-flight edit can no longer resurrect the row; a SKU with no
+ * live row yields {@link Failure.ProductNotFound}. {@link #search(Option, Option, PageRequest)} is a
+ * native paginated query whose {@code ILIKE} predicate stays sargable, excluding soft-deleted rows.
+ * {@link #upsertBySku(Product)} is an atomic {@code INSERT ... ON CONFLICT (sku) DO UPDATE} that
+ * converges on identical redelivery and refuses to resurrect a soft-deleted row (surfacing
+ * {@link Failure.ProductNotFound}).</p>
  */
 public final class PostgreSQLProductRepositoryAdapter implements ProductRepositoryPort {
 
@@ -115,34 +99,24 @@ public final class PostgreSQLProductRepositoryAdapter implements ProductReposito
     }
 
     /**
-     * Checkout stock decrement with a bounded optimistic retry (US-22). The whole retry loop runs
-     * inside <em>one</em> {@code transactionTemplate.execute} on the shared
-     * {@code REQUIRED}-propagation bean, so it joins the ambient checkout transaction: a later
-     * failure in the same Unit of Work (a declined payment) rolls this decrement back automatically,
-     * with no compensating stock logic. Deliberately not {@code REQUIRES_NEW}: an independent
-     * committing transaction would keep the decrement durable even when the payment later fails,
-     * breaking the CA's "rollback restores stock automatically" design.
+     * Checkout stock decrement with a bounded optimistic retry. The whole loop runs inside one
+     * {@code transactionTemplate.execute} on the shared {@code REQUIRED}-propagation bean, so it joins
+     * the ambient checkout transaction: a later failure in the same Unit of Work (a declined payment)
+     * rolls this decrement back automatically, with no compensating stock logic. It is deliberately
+     * not {@code REQUIRES_NEW}, which would keep the decrement durable even when the payment fails.
      *
-     * <p><strong>Conflict detection is a zero-row native UPDATE, never a thrown
-     * {@code OptimisticLockException}.</strong> Each attempt re-reads the live row, applies the pure
-     * {@link Product#decreaseStock(int)} rule (a quantity the stock cannot satisfy yields
-     * {@link Failure.InsufficientStock}/{@link Failure.InvalidStock} — returned immediately, never
-     * retried), then issues a versioned {@code UPDATE ... SET stock = stock - ?, version = version + 1
-     * WHERE sku = ? AND version = ?} (see
+     * <p>Conflict detection is a zero-row versioned native UPDATE, never a thrown
+     * {@code OptimisticLockException}. Each attempt re-reads the live row, applies the pure
+     * {@link Product#decreaseStock(int)} rule (an unsatisfiable quantity yields
+     * {@link Failure.InsufficientStock}/{@link Failure.InvalidStock}, returned immediately), then
+     * issues {@code UPDATE ... WHERE sku = ? AND version = ?} (see
      * {@link SpringDataProductJpaRepository#decreaseStockIfVersionMatches}). A concurrent writer that
-     * advanced the version makes that statement match <em>zero rows</em> — a normal, successful
-     * statement that neither aborts the transaction nor marks it rollback-only. That is the crucial
-     * difference from a managed {@code merge}/{@code flush}: its {@code OptimisticLockException} marks
-     * the whole transaction rollback-only per the JPA spec, so an in-transaction retry is impossible
-     * (the eventual {@code commit} throws {@code UnexpectedRollbackException} — proven by
-     * {@code PurchaseProductServiceIT}). The zero-row result maps to
-     * {@link Failure.ConcurrentStockConflict} and is retried within the same transaction. Each retry
-     * first calls {@code entityManager.clear()}: a JPQL {@code findBySku} would otherwise return the
-     * row still managed in the persistence context from the previous attempt (Hibernate keeps the
-     * managed instance and ignores the freshly-read columns), so the re-read must start from an empty
-     * context to observe the winner's committed version under {@code READ COMMITTED}. After
-     * {@value #MAX_DECREASE_ATTEMPTS} exhausted attempts the conflict is returned as-is. The whole
-     * flow is exception-free — there is no try/catch anywhere in the checkout story.</p>
+     * advanced the version makes it match zero rows — a normal statement that neither aborts nor marks
+     * the transaction rollback-only, so the retry can run in the same transaction (a managed
+     * {@code merge}/{@code flush} conflict would poison it instead). Each retry first calls
+     * {@code entityManager.clear()} so the re-read observes the winner's committed version under
+     * {@code READ COMMITTED}. After {@value #MAX_DECREASE_ATTEMPTS} attempts the conflict is returned
+     * as-is.</p>
      */
     @Override
     public Either<Failure, Product> decreaseStock(SKU sku, int quantity) {

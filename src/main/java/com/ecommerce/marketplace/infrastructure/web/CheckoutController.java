@@ -23,42 +23,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.UUID;
 
 /**
- * Transactional checkout endpoint. {@code GET /checkout} renders the purchase form (optionally
- * pre-filled from {@code sku}/{@code quantity}/{@code paymentToken} query params, always minting a
- * fresh idempotency key); {@code POST /checkout} runs the purchase Unit of Work and renders a
- * per-failure-differentiated result or a confirmation screen.
+ * Transactional checkout endpoint. {@code GET /checkout} renders the purchase form (always minting a
+ * fresh idempotency key); {@code POST /checkout} runs the purchase and renders a per-failure result
+ * or a confirmation.
  *
- * <p><strong>Two distinct idempotency-key lifecycles across a rejected submit (US-23).</strong>
- * A pure input-validation failure ({@code SKU.of}/{@code PaymentToken.of}/{@code IdempotencyKey.of}
- * or a non-positive quantity) happens <em>before</em> {@link PurchaseProductService#purchase} is
- * ever called, so the idempotency store was never touched: the form is re-rendered with the entered
- * values and the <em>same</em> key carried in its hidden field, so fixing a typo and resubmitting is
- * still logically one attempt. Any business failure after the purchase began has already committed
- * the key (as {@code IN_PROGRESS}, or {@code COMPLETED} for a recorded decline), so reusing it can
- * only replay the stored outcome or fail as duplicate/mismatch — never a real retry. Every such
- * retry path therefore routes back through {@code GET /checkout}, which mints a brand-new key.</p>
+ * <p>An input-validation failure happens before the purchase runs, so the idempotency store is never
+ * touched and the form is re-rendered carrying the same key (fixing a typo stays one attempt). Any
+ * failure after the purchase began has already committed the key, so retries route back through
+ * {@code GET /checkout} for a fresh one.</p>
  *
- * <p><strong>The transaction boundary lives here, not in the application service.</strong> The
- * application layer is Spring-free (no {@code TransactionTemplate}, forbidden by the ArchUnit gate),
- * so the atomic checkout is opened here around {@link PurchaseProductService#purchase}, the same
- * mechanism {@code ImportProductsController} uses. Because {@code purchase} returns an
- * {@link Either} instead of throwing, a {@code Left} result does not auto-roll-back a
- * {@code TransactionTemplate.execute} block (only a thrown exception does): the controller must
- * explicitly {@code setRollbackOnly()} for <em>every</em> {@code Left}, so a declined payment, a
- * stock conflict, an insufficient-stock or a duplicate-request all roll the main transaction back
- * (stock restored automatically for the ones that already decremented it).</p>
+ * <p>The transaction boundary lives here because the application layer is Spring-free. Since
+ * {@code purchase} returns an {@link Either} rather than throwing, the controller must explicitly
+ * {@code setRollbackOnly()} on every {@code Left} to roll back (and restore) stock.</p>
  *
- * <p><strong>Two-phase split for a declined payment.</strong> On {@link Failure.PaymentRejected}
- * only, a second, genuinely independent {@code REQUIRES_NEW} transaction records a {@code REJECTED}
- * order and completes the idempotency key with a rejected snapshot — so a retry with the same key is
- * told "already declined" instead of re-charging. This is why the concrete
- * {@link PurchaseProductService} is injected (its {@code recordRejection} is an
- * infrastructure-orchestration detail, not on the port). {@code recordRejectionIfDeclined} mirrors
- * {@code purchaseAtomically}'s {@code peekLeft(setRollbackOnly)}: a {@code Left} from
- * {@code recordRejection} (e.g. a vanished product) must not commit a half-written compensating
- * transaction either. Other failures deliberately get no phase-2 write and may leave the key
- * {@code IN_PROGRESS} — the documented, accepted residual risk (a later TTL cleanup reclaims those),
- * not a bug to fix here.</p>
+ * <p>A declined payment triggers a second, independent {@code REQUIRES_NEW} transaction that records
+ * a {@code REJECTED} order and completes the key with a rejected snapshot, so a retry is told
+ * "already declined" instead of re-charging — hence the concrete {@link PurchaseProductService} is
+ * injected for its {@code recordRejection}. Other failures get no phase-2 write.</p>
  */
 @Controller
 public class CheckoutController {

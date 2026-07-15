@@ -11,17 +11,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * Soft-delete action (US-12). {@code POST /products/{sku}/delete} logically removes a product and
- * redirects back to the dashboard with a success flash; the detail view (US-10) exposes the button
- * that submits here behind a JS {@code confirm()} (no dedicated confirmation page for a size-S
- * story).
- *
- * <p>Every outcome stays a value: a URL segment that is not a valid SKU
- * ({@link Failure.InvalidSku}) and a SKU that matches no live product — including one already
- * deleted — ({@link Failure.ProductNotFound}) both fold into the same friendly 404 view, never a
- * stacktrace and never a double delete. Post-redirect-get avoids a re-submitted delete on refresh.
- * The flow stays inside Vavr's {@code Either}; the only place a persistence exception could be
- * caught is the repository adapter, and soft delete needs none.</p>
+ * Soft-delete action. {@code POST /products/{sku}/delete} logically removes a product and redirects
+ * back to the dashboard with a success flash (post-redirect-get avoids a re-submitted delete on
+ * refresh). An invalid SKU and a SKU matching no live product — including one already deleted — both
+ * fold into the same friendly 404 view, never a stacktrace and never a double delete.
  */
 @Controller
 public class DeleteProductController {

@@ -10,32 +10,20 @@ import io.vavr.control.Either;
 import java.util.Locale;
 
 /**
- * Deterministic fake payment gateway (US-20): the charge outcome is decided purely from a
- * case-insensitive prefix of {@link PaymentToken#value()}, in the spirit of Stripe's test cards.
- * This lets US-22/US-23 checkout tests drive approvals, bank rejections and gateway outages with
- * predictable, reproducible tokens.
+ * Deterministic fake payment gateway whose charge outcome is decided purely from a case-insensitive
+ * prefix of {@link PaymentToken#value()}, in the spirit of Stripe's test cards, so checkout tests can
+ * drive approvals, bank rejections and gateway outages with reproducible tokens. The same
+ * {@code (PaymentToken, Money)} pair always yields the same result, including a stable
+ * {@code confirmationReference} derived from token and amount rather than a random UUID.
  *
- * <p><strong>Where the prefix semantics live.</strong> The mapping "prefix → outcome" is confined
- * to this adapter and nowhere else. {@link PaymentToken} stays a plain format-validated domain VO
- * (US-02) with zero knowledge of prefixes, and {@link PaymentGatewayPort} exposes only the neutral
- * {@code Either<Failure, PaymentConfirmation>} contract. The application and domain layers never
- * pattern-match on token content.</p>
- *
- * <p><strong>Prefix convention</strong> (matched case-insensitively):</p>
- * <ul>
- *   <li>{@code approved-} → the charge succeeds with a {@link PaymentConfirmation}.</li>
- *   <li>{@code insufficient-funds-} → business rejection by the (simulated) issuing bank:
- *       {@code Left(PaymentRejected)} whose reason marks it as a declined charge.</li>
- *   <li>{@code gateway-error-} → simulated infrastructure outage of the gateway itself:
- *       {@code Left(PaymentGatewayUnavailable)}, a distinct sealed variant from a bank decline so a
- *       caller can branch on type (HTTP 503 vs. 402) instead of string-matching the reason.</li>
- *   <li>any other token → <em>default rejection</em>. An unrecognized token must never silently
- *       succeed and move money, so the fail-safe default is to decline, not to approve.</li>
- * </ul>
- *
- * <p><strong>Determinism.</strong> The same {@code (PaymentToken, Money)} pair always yields the
- * same result, including a stable {@code confirmationReference} derived from the token and amount
- * (not a random UUID), so downstream checkout tests can assert the reference exactly.</p>
+ * <p>The prefix → outcome mapping is confined to this adapter: {@link PaymentToken} stays a plain
+ * format-validated VO and {@link PaymentGatewayPort} exposes only the neutral
+ * {@code Either<Failure, PaymentConfirmation>} contract, so application and domain never
+ * pattern-match on token content. Prefixes (case-insensitive): {@code approved-} succeeds;
+ * {@code insufficient-funds-} is a bank decline ({@code PaymentRejected}); {@code gateway-error-} is
+ * a simulated outage ({@code PaymentGatewayUnavailable}, a distinct variant so callers branch on type
+ * rather than string-match the reason); any other token defaults to a decline, so an unrecognized
+ * token never silently moves money.</p>
  */
 public final class FakePaymentGatewayAdapter implements PaymentGatewayPort {
 

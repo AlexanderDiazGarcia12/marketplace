@@ -22,16 +22,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.Locale;
 
 /**
- * Admin order pages. {@code GET /orders} renders a paginated, status-filterable listing of every
- * order (there is no customer identity in this system, so it is intentionally global — the same
- * shape as the product dashboard); {@code GET /orders/{id}} renders one order with its lines.
- *
- * <p>Both stay inside Vavr's {@code Either}, mirroring {@code ProductDashboardController} and
- * {@code ProductDetailController}: an unparseable {@code status} degrades to "no filter" rather than
- * an error, a listing {@code Failure} degrades to an empty view, and two paths lead to the same
- * friendly 404 for the detail — a well-formed id matching no order ({@code Failure.OrderNotFound})
- * and a URL segment that is not a valid UUID ({@code Failure.InvalidOrderId}). The domain aggregate
- * never reaches the templates; {@link OrderRowView}/{@link OrderDetailView} project each shape.</p>
+ * Admin order pages. {@code GET /orders} is a paginated, status-filterable listing of every order
+ * (global — there is no customer identity in this system). {@code GET /orders/{id}} is the detail
+ * view; an unknown or malformed id both render the same friendly 404. The domain aggregate never
+ * reaches the templates — {@link OrderRowView}/{@link OrderDetailView} project each shape.
  */
 @Controller
 public class OrderController {
@@ -112,12 +106,7 @@ public class OrderController {
         return NOT_FOUND_VIEW;
     }
 
-    /**
-     * View-only pagination state derived from the application-layer {@link Page}. Exposes 1-based
-     * display numbers and the previous/next page indices for the controls, so the template stays
-     * free of arithmetic — the same shape as {@code ProductDashboardController}'s pagination view,
-     * generalized over any {@code Page<?>}.
-     */
+    /** View-only pagination state derived from a {@link Page}, so the template does no arithmetic. */
     record PaginationView(
             int currentPage,
             int totalPages,

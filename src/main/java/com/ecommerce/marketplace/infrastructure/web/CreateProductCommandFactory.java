@@ -13,12 +13,9 @@ import io.vavr.control.Try;
 import io.vavr.control.Validation;
 
 /**
- * Turns a raw {@link ProductForm} into a validated {@link CreateProductCommand}, accumulating
- * every field failure with Vavr {@link Validation} instead of short-circuiting on the first one.
- *
- * <p>Each value-object factory returns {@code Either<Failure, T>}; {@code .toValidation()} lifts
- * it into the applicative world so {@link Validation#combine} gathers all {@link Failure}s into a
- * single {@code Seq} — a form with several bad fields reports them together in one round trip.</p>
+ * Turns a raw {@link ProductForm} into a validated {@link CreateProductCommand}, using Vavr
+ * {@link Validation} to accumulate every field failure into a single {@code Seq} so a form with
+ * several bad fields reports them together in one round trip.
  */
 final class CreateProductCommandFactory {
 

@@ -32,28 +32,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.Map;
 
 /**
- * Wiring for the whole Kafka messaging path. Owns the producer + outbox side (US-15: the
- * {@link EventPublisherPort} outbox adapter and the {@link OutboxRelayScheduler}) and the consumer
- * side (US-17: the manual-ack listener container factory and the {@link ProductImportConsumer}),
- * keeping all Kafka/spring-kafka types confined to {@code infrastructure} (never
- * {@code application}/{@code domain}).
+ * Wires the whole Kafka messaging path (producer, outbox relay, and manual-ack consumer), keeping
+ * all Kafka/spring-kafka types confined to {@code infrastructure}. The relay is always active (not
+ * profile-gated) because the outbox is core to the app's eventual-consistency guarantee.
  *
- * <p>{@link EnableScheduling} is placed here rather than on {@code MarketplaceApplication} so the
- * scheduling concern stays co-located with the only scheduled task in the project; {@link EnableKafka}
- * turns on {@code @KafkaListener} processing for the US-17 consumer. The relay is
- * <strong>always active</strong> (not profile-gated): the outbox is core to the app's eventual
- * consistency guarantee, so unlike the optional Redis cache (US-14) there is no configuration in
- * which it should be off. Its tick interval is externalized
- * ({@code marketplace.outbox.relay.fixed-delay-ms}, default 1000ms).</p>
- *
- * <p>A String/String {@link KafkaTemplate} is declared explicitly (rather than relying on the
- * autoconfigured {@code Object/Object} template): the outbox already serialized the event to a
- * JSON string, so the producer only ever ships a pre-serialized {@code String} value keyed by the
- * aggregate id, and String serializers make that contract explicit. The import consumer factory is
- * likewise String/String with <strong>auto-commit disabled and {@code AckMode.MANUAL}</strong>: the
- * US-17 worker acks the offset only after the whole file reaches a terminal state, so a mid-file
- * crash triggers a real Kafka redelivery rather than a silent loss (the consumer is idempotent by
- * construction to absorb it).</p>
+ * <p>Templates and factories are String/String because the outbox already serialized each event to
+ * a JSON string keyed by aggregate id. The consumer factory disables auto-commit and uses
+ * {@code AckMode.MANUAL} so the offset is acked only after a file reaches a terminal state, turning
+ * a mid-file crash into a real Kafka redelivery the idempotent consumer can absorb.</p>
  */
 @Configuration
 @EnableScheduling

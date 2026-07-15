@@ -15,14 +15,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Arrays;
 
 /**
- * Create-product form (US-09). Kept separate from {@code ProductDashboardController} so the
- * listing shell and the creation flow evolve independently.
- *
- * <p>{@code GET /products/new} renders an empty form; {@code POST /products} accumulates all
- * field failures with {@link CreateProductCommandFactory} (Vavr {@code Validation}), and only if
- * the form is fully valid invokes {@link CreateProductUseCase}. A {@link Failure.DuplicateSku}
- * from persistence is folded into an inline field error — never a thrown exception or a
- * stacktrace in the response.</p>
+ * Create-product form. {@code GET /products/new} renders an empty form; {@code POST /products}
+ * accumulates all field failures with {@link CreateProductCommandFactory} and, only if fully valid,
+ * invokes {@link CreateProductUseCase}. A {@link Failure.DuplicateSku} from persistence is folded
+ * into an inline field error rather than a thrown exception.
  */
 @Controller
 public class ProductFormController {
