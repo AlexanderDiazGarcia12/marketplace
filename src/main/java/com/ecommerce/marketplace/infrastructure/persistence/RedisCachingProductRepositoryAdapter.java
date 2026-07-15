@@ -15,31 +15,18 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.time.Duration;
 
 /**
- * Read-through Redis cache decorator over the real {@link ProductRepositoryPort} (US-14). Wired
- * only under the {@code cache} profile; without it the plain Postgres adapter is injected and this
- * class is never instantiated. The application use cases ({@code GetProductService},
- * {@code SearchProductService}) depend solely on {@link ProductRepositoryPort} and are unaware a
- * cache exists — the decorator is a pure infrastructure concern, honoring the CA and RNF-2.
+ * Read-through Redis cache decorator over the real {@link ProductRepositoryPort}, wired only under
+ * the {@code cache} profile. The application use cases depend solely on {@link ProductRepositoryPort}
+ * and are unaware a cache exists — the decorator is a pure infrastructure concern. Reads
+ * ({@link #findBySku(SKU)}, {@link #search(Option, Option, PageRequest)}) are cached; writes delegate
+ * and, only on success, invalidate. Any Redis error falls back to the delegate, so an outage removes
+ * the cache benefit rather than breaking the request path.
  *
- * <p><strong>What is cached:</strong> the two read operations, {@link #findBySku(SKU)} and
- * {@link #search(Option, Option, PageRequest)}. Writes ({@link #save}, {@link #update},
- * {@link #softDelete}) delegate to the delegate and, only on success, invalidate the cache. Reads
- * degrade gracefully: any Redis error (miss, timeout, unreachable) falls back to the delegate, so
- * a Redis outage never breaks the request path — it only removes the cache benefit.</p>
- *
- * <p><strong>Search invalidation strategy — version-prefixed keys.</strong> A single write can
- * change which products land on any cached filter/page combination, so surgical per-key eviction
- * is impossible. Rather than {@code SCAN}/{@code DEL} the whole search namespace on every write
- * (extra round-trips) or {@code KEYS} (blocking, forbidden in production), search keys embed a
- * monotonically increasing version read from {@code product:search:version}. A write bumps that
- * counter with a single atomic {@code INCR}; every previously cached search key instantly becomes
- * unreachable and is reclaimed by its TTL. This favors correctness over hit-rate, appropriate for
- * an optional Could-sized story.</p>
- *
- * <p><strong>TTL:</strong> {@value #TTL_SECONDS}s on every cached entry, as a safety net against
- * any invalidation gap (e.g. a write that failed to bump the version after a partial Redis error).
- * Short enough that stale reads self-heal within a minute, long enough to absorb the repeated-read
- * bursts this cache targets.</p>
+ * <p>Search results cannot be evicted surgically (one write can change any cached filter/page), so
+ * search keys embed a version counter read from {@code product:search:version}; a write bumps it with
+ * a single atomic {@code INCR}, making every previously cached search key unreachable at once —
+ * favoring correctness over hit-rate. Every entry also carries a {@value #TTL_SECONDS}s TTL as a
+ * safety net so any invalidation gap self-heals.</p>
  */
 public final class RedisCachingProductRepositoryAdapter implements ProductRepositoryPort {
 

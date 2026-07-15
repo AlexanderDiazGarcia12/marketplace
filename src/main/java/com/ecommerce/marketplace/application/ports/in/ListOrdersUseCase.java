@@ -7,12 +7,8 @@ import com.ecommerce.marketplace.domain.failure.Failure;
 import io.vavr.control.Either;
 
 /**
- * Input port: paginated admin listing of all orders, ordered by creation date descending and
- * optionally filtered by status.
- *
- * <p>Returns {@code Either<Failure, Page<OrderSummary>>} with the application-owned {@link Page}
- * (never {@code org.springframework.data.domain.Page}), mirroring {@link SearchProductUseCase}. An
- * empty result set is a valid {@link Page} with zero elements, not a {@link Failure}.</p>
+ * Paginated admin listing of all orders, newest first, optionally filtered by status. An empty
+ * result is a valid {@link Page}, not a {@link Failure}.
  */
 public interface ListOrdersUseCase {
 

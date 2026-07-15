@@ -8,17 +8,10 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link UpdateProductUseCase} (US-11), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations live here, keeping the application layer framework-free.
- *
- * <p>{@code Product.of(...)} re-validates every value object (SKU, name, category, price, stock,
- * weight) and rebuilds the aggregate carrying the {@code expectedVersion} the editor loaded. The
- * repository then attempts the optimistic update: Hibernate's {@code @Version} check rejects the
- * write when a concurrent edit already advanced the row, which the adapter translates to
- * {@link Failure.ConcurrentStockConflict}. This service composes those outcomes as values and
- * never handles a persistence exception itself — the only {@code try/catch} for optimistic locking
- * lives in the persistence adapter.</p>
+ * Implementation of {@link UpdateProductUseCase}. {@code Product.of(...)} re-validates every value
+ * object and rebuilds the aggregate carrying the {@code expectedVersion} the editor loaded; the
+ * repository then attempts the optimistic update, where Hibernate's {@code @Version} check rejects a
+ * write that a concurrent edit already advanced (translated to {@link Failure.ConcurrentStockConflict}).
  */
 public final class UpdateProductService implements UpdateProductUseCase {
 

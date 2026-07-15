@@ -5,14 +5,9 @@ import com.ecommerce.marketplace.domain.model.product.SKU;
 import io.vavr.control.Option;
 
 /**
- * One line of an {@link OrderDetail}: the captured checkout snapshot ({@code sku}, {@code quantity},
- * {@code unitPrice}, {@code subtotal}) enriched with the current catalog product name.
- *
- * <p>{@code productName} is an {@link Option} because the referenced product may have been
- * soft-deleted since the order was placed (US-12): historical orders legitimately reference SKUs no
- * longer live, so the name is absent rather than a failure, and the presentation layer falls back to
- * showing the SKU. The line's own data always comes from the immutable order snapshot, so a missing
- * name never breaks the detail.</p>
+ * One line of an {@link OrderDetail}: the checkout snapshot enriched with the current product
+ * name. {@code productName} is empty when the referenced product has since been deleted from the
+ * catalog — the view falls back to showing the SKU.
  */
 public record OrderLine(SKU sku, Option<String> productName, int quantity, Money unitPrice, Money subtotal) {
 

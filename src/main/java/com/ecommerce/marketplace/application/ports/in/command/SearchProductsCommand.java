@@ -6,11 +6,8 @@ import io.vavr.control.Option;
 
 /**
  * Input command for {@link com.ecommerce.marketplace.application.ports.in.SearchProductUseCase}.
- *
- * <p>{@code searchText} and {@code category} are both optional filters (US-13: free-text search
- * combined with an optional category filter), modeled with {@link Option} rather than nullable
- * fields so the use case never has to null-check. {@code pageRequest} bounds the result set
- * (US-13 CA: "tamaño de página acotado").</p>
+ * {@code searchText} and {@code category} are optional filters modeled with {@link Option} so the
+ * use case never null-checks; {@code pageRequest} bounds the result set.
  */
 public record SearchProductsCommand(
         Option<String> searchText,

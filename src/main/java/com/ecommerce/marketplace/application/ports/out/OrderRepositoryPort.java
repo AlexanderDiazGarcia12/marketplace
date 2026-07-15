@@ -13,24 +13,13 @@ import io.vavr.control.Option;
 /**
  * Output port for order persistence.
  *
- * <p>{@link #findById(OrderId)} follows the same "absence is not a failure" rule as {@link
- * ProductRepositoryPort#findBySku(com.ecommerce.marketplace.domain.model.product.SKU)}: it
- * returns {@link Option}, and the caller decides whether a missing order is an error in its own
- * context. {@link #save(Order)} can fail — e.g. a constraint violation surfaced as a {@link
- * Failure} by the adapter — hence {@code Either}.</p>
+ * <p>{@link #findById(OrderId)} and {@link #findByIdempotencyKey(IdempotencyKey)} return
+ * {@link Option}: a missing order is not a failure, the caller decides. {@link #save(Order)}
+ * returns {@link Either} since persistence itself can fail.</p>
  *
- * <p>{@link #findByIdempotencyKey(IdempotencyKey)} exists so the compensating rejection write
- * (US-22) is idempotent: {@code orders.idempotency_key} is {@code UNIQUE}, so an order already
- * present for a key means the rejection was already recorded, and a retry must return it rather than
- * attempt a second insert that the constraint would reject.</p>
- *
- * <p>{@link #list(Option, PageRequest)} is the read-side counterpart, added for the admin order
- * listing: a paginated {@link Page} of lightweight {@link OrderSummary} projections ordered by
- * creation date descending, optionally filtered by {@link OrderStatus}. It deliberately never loads
- * the {@link Order} aggregate nor fetch-joins {@code order_items} — that would force Hibernate to
- * paginate the collection in memory — so it returns header projections with a scalar item count,
- * matching the {@link ImportJobRepositoryPort#detail} read-model approach rather than the write
- * aggregate.</p>
+ * <p>{@link #list(Option, PageRequest)} is a lightweight paginated projection for the admin
+ * listing — never the full {@link Order} aggregate, and never a fetch join of its line items
+ * (which would force in-memory pagination), just header data plus an item count.</p>
  */
 public interface OrderRepositoryPort {
 

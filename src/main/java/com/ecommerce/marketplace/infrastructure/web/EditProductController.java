@@ -19,16 +19,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Arrays;
 
 /**
- * Edit-product form (US-11). {@code GET /products/{sku}/edit} renders a form prefilled with the
- * product's current values plus a hidden {@code version} field; {@code POST /products/{sku}/edit}
- * re-validates every field (accumulating failures with Vavr {@code Validation}) and, only if the
- * form is valid, invokes {@link UpdateProductUseCase}.
- *
- * <p>Every outcome stays a value: an unknown SKU or a stale-version conflict comes back as a
- * {@link Failure} the controller folds into the view — a {@link Failure.ConcurrentStockConflict}
- * re-renders the form with a reload-and-retry banner (never a stacktrace or a silent lost update).
- * The only place a persistence exception is caught is the repository adapter; this controller and
- * the use case behind it are exception-free.</p>
+ * Edit-product form. {@code GET /products/{sku}/edit} renders a form prefilled with current values
+ * plus a hidden {@code version} field; {@code POST /products/{sku}/edit} re-validates every field
+ * (accumulating failures with Vavr {@code Validation}) and, only if valid, invokes
+ * {@link UpdateProductUseCase}. An unknown SKU folds into a 404; a stale-version
+ * {@link Failure.ConcurrentStockConflict} re-renders the form with a reload-and-retry banner rather
+ * than a silent lost update.
  */
 @Controller
 public class EditProductController {

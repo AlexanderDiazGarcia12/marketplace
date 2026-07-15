@@ -9,15 +9,9 @@ import com.ecommerce.marketplace.domain.failure.Failure;
 import io.vavr.control.Either;
 
 /**
- * Plain-Java implementation of {@link GetImportJobStatusUseCase} (US-18), wired via an explicit
- * {@code @Bean} in {@code infrastructure.config.SpringDependencyInjectionConfig} — no Spring
- * stereotype annotations live here, keeping the application layer framework-free.
- *
- * <p>Composes the {@code Option → Either} read pattern: {@link ImportJobRepositoryPort#detail}
- * reports mere existence with {@code Option}, and this use case — which requires the job to exist —
- * turns an empty {@code Option} into {@code Failure.ImportJobNotFound}. Only when the job is present
- * does it read the (possibly empty) list of rejected rows and combine both into an
- * {@link ImportJobStatusReport}.</p>
+ * Implementation of {@link GetImportJobStatusUseCase}. Turns an empty {@link ImportJobRepositoryPort#detail}
+ * lookup into {@code Failure.ImportJobNotFound}; when the job exists it reads its (possibly empty)
+ * rejected rows and combines both into an {@link ImportJobStatusReport}.
  */
 public final class GetImportJobStatusService implements GetImportJobStatusUseCase {
 

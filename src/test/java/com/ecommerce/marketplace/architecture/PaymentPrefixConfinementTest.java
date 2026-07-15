@@ -15,18 +15,15 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Guards US-20 Resolution Pt.1: the fake-gateway prefix semantics live only in
- * {@code infrastructure.payment}, and the domain never knows a prefix decides a charge outcome.
+ * Guards that the fake-gateway prefix semantics live only in {@code infrastructure.payment}, and
+ * the domain never knows a prefix decides a charge outcome.
  *
  * <p>Two complementary proofs:</p>
  * <ol>
- *   <li><em>Agnosticism</em> — {@link PaymentToken#of(String)} validates identically whatever the
- *       prefix is; a token is accepted or rejected purely on format (non-blank, length), never on
- *       whether it looks "approved" or "rejected".</li>
- *   <li><em>Confinement</em> — no source file under {@code domain} contains any of the gateway
- *       prefix literals. A source scan (not bytecode) is used deliberately: string literals can be
- *       inlined or dropped by the compiler, so scanning {@code .java} sources catches even a stray
- *       comment mentioning a prefix.</li>
+ *   <li><em>Agnosticism</em> — {@link PaymentToken#of(String)} validates purely on format
+ *       (non-blank, length), never on whether a token looks "approved" or "rejected".</li>
+ *   <li><em>Confinement</em> — no source file under {@code domain} contains any gateway prefix
+ *       literal. A source scan (not bytecode) is used so even a stray comment is caught.</li>
  * </ol>
  */
 class PaymentPrefixConfinementTest {

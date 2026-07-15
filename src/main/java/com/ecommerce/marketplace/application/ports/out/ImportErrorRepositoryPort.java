@@ -6,22 +6,15 @@ import io.vavr.collection.Seq;
 import io.vavr.control.Either;
 
 /**
- * Output port for per-row CSV validation failures (US-17), written to {@code import_job_errors}.
+ * Output port for per-row CSV validation failures, written to {@code import_job_errors}.
  *
- * <p><strong>Idempotent by construction.</strong> {@link #recordRowError} backs onto
- * {@code INSERT ... ON CONFLICT (import_job_id, row_number) DO NOTHING} over the V6 unique
- * constraint: re-recording the same rejected row on an at-least-once redelivery is a silent no-op,
- * never a duplicate. The reasons for an identical row don't change between identical retries, so the
- * first-written reasons win.</p>
- *
- * <p>{@link #countByJob} lets the worker derive {@code rejected_rows} once, at the terminal
- * transition, from the authoritative row count in the table rather than an in-memory accumulator
- * that a partial redelivery would over-count.</p>
- *
- * <p>{@link #errorsFor} is the US-18 read query: it lists every rejected row of a job, ordered by
- * {@code row_number}, with the {@code error_reason} JSONB array already deserialized back into a
- * {@code Seq<String>} of legible reasons — the exact shape {@link #recordRowError} wrote — so the
- * status view renders reasons as a list, never as raw JSON.</p>
+ * <p><strong>Idempotent by construction.</strong> {@link #recordRowError} inserts on conflict do
+ * nothing over the {@code (import_job_id, row_number)} unique constraint, so re-recording the same
+ * rejected row on an at-least-once redelivery is a silent no-op. {@link #countByJob} lets the
+ * worker derive {@code rejected_rows} once from the authoritative row count rather than an
+ * in-memory accumulator a partial redelivery would over-count. {@link #errorsFor} lists a job's
+ * rejected rows ordered by {@code row_number}, with reasons deserialized into a {@code Seq<String>}
+ * so the status view renders them as a list, never raw JSON.</p>
  */
 public interface ImportErrorRepositoryPort {
 

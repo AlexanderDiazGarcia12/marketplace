@@ -8,16 +8,12 @@ import io.vavr.control.Option;
 import java.util.Map;
 
 /**
- * Owns the {@code eventType → Kafka topic} routing that used to live on {@code DomainEvent.topic()}
- * (US-15 decision, resolving the US-04 audit's deferred recommendation): the destination topic is
- * an infrastructure transport detail, so it is derived here in the adapter rather than declared by
- * the application-layer event. Adding a new event means adding one entry here, not touching the
- * application contract.
- *
- * <p>Covers exactly the three topics named by the US-15 CA. An event whose type has no mapping
- * yields {@link Option#none()}, which the outbox adapter turns into a
- * {@link com.ecommerce.marketplace.domain.failure.Failure.EventPublishFailed} rather than guessing
- * a topic or silently dropping the event.</p>
+ * Owns the {@code eventType → Kafka topic} routing here in infrastructure rather than on the
+ * application-layer event, since the destination topic is a transport detail; adding an event means
+ * adding one entry here, not touching the application contract. An unmapped event type yields
+ * {@link Option#none()}, which the outbox adapter turns into a
+ * {@link com.ecommerce.marketplace.domain.failure.Failure.EventPublishFailed} rather than guessing a
+ * topic or silently dropping the event.
  */
 final class OutboxTopics {
 

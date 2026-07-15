@@ -14,16 +14,13 @@ import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 
 /**
- * Serializes domain products to/from a compact JSON representation for the Redis read cache
- * (US-14). It never serializes domain records directly: those carry Vavr types and validated
- * value objects Jackson cannot round-trip safely. Instead it maps to infrastructure-owned flat
- * DTOs ({@link ProductSnapshot}, {@link PageSnapshot}) built from plain Java types, keeping the
- * cache format an implementation detail of {@code infrastructure.persistence} and never leaking
- * a Spring or Jackson type across the hexagon boundary.
- *
- * <p>Decoding rebuilds value objects through their validating constructors, so a corrupt or
- * schema-drifted cache entry surfaces as {@link Option#none()} (treated as a miss by the caching
- * adapter) rather than a poisoned domain object.</p>
+ * Serializes domain products to/from a compact JSON representation for the Redis read cache. It never
+ * serializes domain records directly (they carry Vavr types and validated value objects Jackson
+ * cannot round-trip safely); instead it maps to infrastructure-owned flat DTOs
+ * ({@link ProductSnapshot}, {@link PageSnapshot}), keeping the cache format an implementation detail.
+ * Decoding rebuilds value objects through their validating constructors, so a corrupt or
+ * schema-drifted entry surfaces as {@link Option#none()} (a cache miss) rather than a poisoned domain
+ * object.
  */
 public final class ProductCacheCodec {
 

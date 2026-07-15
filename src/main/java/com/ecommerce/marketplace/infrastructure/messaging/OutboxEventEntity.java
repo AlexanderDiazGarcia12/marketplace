@@ -15,28 +15,16 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 
 /**
- * JPA mapping of the {@code outbox_events} table (V4). Lives strictly inside
- * {@code infrastructure.messaging}: it never crosses into {@code domain}/{@code application} or the
- * views — the outbox adapter builds it from a {@link com.ecommerce.marketplace.application.event.DomainEvent}
- * and the relay reads it back through package-private accessors only.
+ * JPA mapping of the {@code outbox_events} table, confined to {@code infrastructure.messaging}: the
+ * adapter builds it from a {@link com.ecommerce.marketplace.application.event.DomainEvent} and the
+ * relay reads it back through package-private accessors only.
  *
- * <p>Design notes tied to the physical schema:</p>
- * <ul>
- *   <li>{@code id} is the synthetic identity PK ({@code BIGINT GENERATED ALWAYS AS IDENTITY}).</li>
- *   <li>{@code status} reuses the native {@code outbox_status} enum from V1 via
- *       {@code @JdbcTypeCode(NAMED_ENUM)} (binds by {@link Enum#name()}), matching the
- *       {@code products.category} convention from US-09 (no mirror enum).</li>
- *   <li>{@code payload} is {@code JSONB}; Hibernate binds a serialized JSON string to it via
- *       {@code @JdbcTypeCode(SqlTypes.JSON)}.</li>
- *   <li>{@code created_at} is DB-defaulted ({@code now()}), so it is {@code insertable = false}
- *       and read back after insert. {@code processed_at} is written by the relay on a terminal
- *       transition.</li>
- * </ul>
- *
- * <p>Accessors are package-private (Lombok {@code @Getter(PACKAGE)}) and there are no generic
- * setters — the relay mutates only through the narrow {@link #markPublished(OffsetDateTime)} and
- * {@link #markRetriedOrFailed(OutboxStatus, OffsetDateTime)} methods, keeping the mutation surface
- * closed exactly as {@code JPAProductEntity} does.</p>
+ * <p>Schema-tied notes: {@code status} binds to the native {@code outbox_status} enum via
+ * {@code @JdbcTypeCode(NAMED_ENUM)}; {@code payload} is {@code JSONB}; {@code created_at} is
+ * DB-defaulted ({@code insertable = false}) and {@code processed_at} is written by the relay on a
+ * terminal transition. Accessors are package-private with no generic setters — the relay mutates
+ * only through {@link #markPublished(OffsetDateTime)} and
+ * {@link #markRetriedOrFailed(OutboxStatus, OffsetDateTime)}.</p>
  */
 @Entity
 @Table(name = "outbox_events")
@@ -94,9 +82,8 @@ public class OutboxEventEntity {
     }
 
     /**
-     * Terminal success: the event was delivered to Kafka. Stamps {@code processed_at} and flips
-     * status to {@code PUBLISHED} on the managed row, so the relay's dirty-checking flush persists
-     * the transition.
+     * Terminal success: stamps {@code processed_at} and flips status to {@code PUBLISHED} on the
+     * managed row, so the relay's dirty-checking flush persists the transition.
      */
     void markPublished(OffsetDateTime processedAt) {
         this.status = OutboxStatus.PUBLISHED;
@@ -104,10 +91,9 @@ public class OutboxEventEntity {
     }
 
     /**
-     * Publish attempt failed: bump {@code retry_count} and set the new status. The relay passes
-     * {@code PENDING} to leave the row eligible for the next drain (transient failure, retried), or
-     * {@code FAILED} once the retry cap is reached (giving up), stamping {@code processed_at} only
-     * on the terminal {@code FAILED} transition.
+     * Publish attempt failed: bumps {@code retry_count} and sets the new status — {@code PENDING} to
+     * leave the row eligible for the next drain, or {@code FAILED} once the retry cap is reached,
+     * stamping {@code processed_at} only on the terminal {@code FAILED} transition.
      */
     void markRetriedOrFailed(OutboxStatus newStatus, OffsetDateTime processedAt) {
         this.retryCount = this.retryCount + 1;

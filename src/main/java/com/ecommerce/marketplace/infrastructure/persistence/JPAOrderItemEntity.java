@@ -15,23 +15,12 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 /**
- * JPA mapping of the {@code order_items} table (V8). Owned child of {@link JPAOrderEntity}; never
- * addressed externally, only read back per order — hence the synthetic {@code BIGINT} identity PK.
- * Lives strictly inside {@code infrastructure.persistence}; {@link OrderMapper} builds it from a
- * domain {@code OrderItem} line.
- *
- * <p>Design notes tied to the physical schema:</p>
- * <ul>
- *   <li>{@code product_sku} references {@code products(sku)} (the {@code OrderItem} carries a SKU,
- *       not a product id), so it maps 1:1 with no id lookup on write.</li>
- *   <li>{@code unit_price} is a captured price snapshot, deliberately stored (never a live join to
- *       {@code products.price}) so the price the buyer paid is immutable even if the catalog price
- *       later changes.</li>
- * </ul>
- *
- * <p>The {@code order} back-reference is set only through {@link #assignTo(JPAOrderEntity)} from
- * {@link JPAOrderEntity#addItem}, keeping the bidirectional link consistent and the mutation
- * surface closed (no generic setters), matching the entity convention across this package.</p>
+ * JPA mapping of the {@code order_items} table. Owned child of {@link JPAOrderEntity}, never
+ * addressed externally, hence the synthetic {@code BIGINT} identity PK; {@link OrderMapper} builds it
+ * from a domain {@code OrderItem} line. {@code unit_price} is a captured price snapshot (never a live
+ * join to {@code products.price}) so the price the buyer paid stays immutable even if the catalog
+ * price later changes. The {@code order} back-reference is set only through
+ * {@link #assignTo(JPAOrderEntity)}, keeping the bidirectional link consistent.
  */
 @Entity
 @Table(name = "order_items")

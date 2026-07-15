@@ -5,9 +5,9 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import java.text.DecimalFormat;
 
 /**
- * Presentation-layer projection of the {@link Product} aggregate for the detail view (US-10).
- * Keeps the domain record out of the Thymeleaf template and pre-formats the money/weight labels
- * so the view stays free of formatting logic.
+ * Presentation-layer projection of the {@link Product} aggregate for the detail view. Keeps the
+ * domain record out of the template and pre-formats the money/weight labels so the view stays free
+ * of formatting logic.
  */
 record ProductDetailView(
         String sku,

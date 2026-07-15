@@ -47,31 +47,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Integration test for the US-22 transactional checkout Unit of Work against the real Docker Compose
- * Postgres (Flyway builds {@code orders}/{@code order_items} from V8; the DB is <em>not</em> replaced
- * by an embedded one). It wires the real adapters — {@link PostgreSQLProductRepositoryAdapter},
- * {@link PostgreSQLOrderRepositoryAdapter}, {@link PostgreSQLIdempotencyStoreAdapter},
- * {@link KafkaEventPublisherAdapter} (which only inserts an {@code outbox_events} row, so no Kafka
- * broker is needed for this slice), {@link FakePaymentGatewayAdapter} and
- * {@link JacksonPurchaseSnapshotCodec} — around the real {@link PurchaseProductService}. No ports are
- * mocked; the one Mockito stub in this class ({@link SpringDataProductJpaRepository#findBySku}) exists
- * only to inject a competing version bump at a precise instant to make the optimistic-lock retry
- * deterministic — the business logic and every write go through the real adapter against real Postgres.
+ * Integration test for the transactional checkout Unit of Work against the real Docker Compose
+ * Postgres. It wires the real adapters and {@link PurchaseProductService} with no mocked ports;
+ * the one Mockito stub ({@link SpringDataProductJpaRepository#findBySku}) only injects a competing
+ * version bump at a precise instant to make the optimistic-lock retry deterministic.
  *
- * <p>The two-phase transaction split that {@code CheckoutController} owns is replicated here in
- * {@link #checkout(PurchaseCommand)}: the main {@code REQUIRED} transaction wraps
- * {@link PurchaseProductService#purchase} (marking rollback-only on any {@code Left}), and on
- * {@link Failure.PaymentRejected} a separate {@code REQUIRES_NEW} transaction runs
- * {@link PurchaseProductService#recordRejection}. Testing at this layer exercises the genuine
- * transaction semantics (rollback restoring stock, the compensating write surviving that rollback)
- * that the controller's thin orchestration only delegates to.</p>
+ * <p>{@link #checkout(PurchaseCommand)} replicates the controller's two-phase split: a main
+ * {@code REQUIRED} transaction wraps {@link PurchaseProductService#purchase} (rollback-only on any
+ * {@code Left}), and on {@link Failure.PaymentRejected} a separate {@code REQUIRES_NEW} transaction
+ * runs {@link PurchaseProductService#recordRejection}, exercising rollback restoring stock and the
+ * compensating write surviving it.</p>
  *
- * <p>The {@code @DataJpaTest} + {@code AutoConfigureTestDatabase(NONE)} +
- * {@code spring.docker.compose.skip.in-tests=false} + {@code @Transactional(NOT_SUPPORTED)} setup is
- * the same one {@code PostgreSQLIdempotencyStoreAdapterIT} established: every {@code checkout} call
- * commits for real (production checkouts are independent HTTP requests, not one shared rolled-back
- * test transaction), and {@link #cleanUp()} deletes this test's rows by their {@code IT22-} prefix
- * since rollback no longer does it.</p>
+ * <p>{@code @Transactional(NOT_SUPPORTED)} disables the shared per-method rollback so every
+ * {@code checkout} commits for real, matching independent HTTP requests; {@link #cleanUp()} then
+ * deletes this test's rows by their {@code IT22-} prefix.</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -268,11 +257,9 @@ class PurchaseProductServiceIT {
 
     /**
      * Wires the real product adapter over a repository whose {@code findBySku} delegates to the real
-     * Postgres-backed repository but commits a competing {@code version} bump in a separate
-     * transaction on its first {@code bumpsFor} reads — reproducing exactly what a concurrent buyer
-     * does in the window between the adapter's read and its versioned UPDATE, deterministically. The
-     * versioned UPDATE itself delegates straight to the real repository, so the decrement hits real
-     * Postgres; only the read is instrumented.
+     * repository but commits a competing {@code version} bump in a separate transaction on its first
+     * {@code bumpsFor} reads, reproducing what a concurrent buyer does between the adapter's read and
+     * its versioned UPDATE. Only the read is instrumented; the UPDATE hits real Postgres.
      */
     private PostgreSQLProductRepositoryAdapter adapterWhoseReadBumpsVersion(String sku, AtomicInteger reads, int bumpsFor) {
         SpringDataProductJpaRepository instrumented = mock(SpringDataProductJpaRepository.class);

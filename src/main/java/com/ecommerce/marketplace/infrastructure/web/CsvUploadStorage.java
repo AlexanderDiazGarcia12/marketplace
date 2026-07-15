@@ -14,15 +14,11 @@ import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 /**
- * Persists an accepted CSV upload to a referenceable local directory (US-16) and returns an opaque
- * {@code fileReference} (the absolute path) the {@code ImportProductsCommand} carries. The
- * asynchronous US-17 worker later re-opens the file by this reference to stream its rows.
- *
- * <p>Files are stored under a configurable directory ({@code marketplace.import.storage-dir}) with
- * a UUID-based name to avoid collisions between concurrent uploads of the same original filename.
- * The stream is copied through in a single pass (never fully buffered in memory), keeping the web
- * thread's footprint bounded even for large uploads. A filesystem error is returned as
- * {@link Failure.InvalidCsvUpload}, never thrown across the request.</p>
+ * Persists an accepted CSV upload to a configurable directory ({@code marketplace.import.storage-dir})
+ * under a UUID-based name and returns its absolute path as an opaque {@code fileReference} the
+ * asynchronous worker re-opens to stream rows. The stream is copied in a single pass so the web
+ * thread's footprint stays bounded; a filesystem error is returned as
+ * {@link Failure.InvalidCsvUpload}, never thrown across the request.
  */
 @Component
 public class CsvUploadStorage {

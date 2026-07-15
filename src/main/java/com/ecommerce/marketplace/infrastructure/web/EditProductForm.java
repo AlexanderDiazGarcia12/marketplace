@@ -5,12 +5,10 @@ import com.ecommerce.marketplace.domain.model.product.Product;
 import java.text.DecimalFormat;
 
 /**
- * Builds a {@link ProductForm} prefilled with a product's current values for the edit view (US-11),
- * including the loaded optimistic {@code version} that round-trips as a hidden field. Keeps the
- * domain {@link Product} out of the template: the form only ever holds presentation strings.
- *
- * <p>Price is rendered as a plain amount and weight without trailing zeros so the fields re-parse
- * cleanly through the same value-object factories the create form uses.</p>
+ * Builds a {@link ProductForm} prefilled with a product's current values for the edit view,
+ * including the optimistic {@code version} that round-trips as a hidden field, keeping the domain
+ * {@link Product} out of the template. Price and weight are rendered so the fields re-parse cleanly
+ * through the same value-object factories the create form uses.
  */
 final class EditProductForm {
 

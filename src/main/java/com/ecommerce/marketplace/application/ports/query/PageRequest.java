@@ -1,18 +1,11 @@
 package com.ecommerce.marketplace.application.ports.query;
 
 /**
- * Framework-free pagination request for application-layer queries.
- *
- * <p>Deliberately independent of {@code org.springframework.data.domain.Pageable} so that
- * {@code application.ports} carries zero Spring dependency (US-04 CA). {@code page} is
- * zero-based; {@code size} is bounded by {@link #MAX_SIZE} to protect the database from
- * unbounded scans.</p>
- *
- * <p>Lives in {@code application.ports.query} — a side-neutral package shared by both the input
- * port ({@code SearchProductUseCase}) and the output port ({@code ProductRepositoryPort}). It was
- * moved here from {@code application.ports.in.query} in US-13: an out-port must not depend on a
- * package owned by the in-side, a coupling the US-04/US-09/US-11 audits flagged as deferred to
- * this story.</p>
+ * Framework-free pagination request for application-layer queries, independent of
+ * {@code org.springframework.data.domain.Pageable} so {@code application.ports} carries zero Spring
+ * dependency. {@code page} is zero-based; {@code size} is bounded by {@link #MAX_SIZE} to protect
+ * the database from unbounded scans. Lives in {@code application.ports.query}, a side-neutral
+ * package shared by both the input and output ports.
  */
 public record PageRequest(int page, int size) {
 

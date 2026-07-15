@@ -6,10 +6,8 @@ import com.ecommerce.marketplace.application.ports.in.query.OrderLine;
 import java.util.List;
 
 /**
- * Presentation-layer projection of an {@link OrderDetail} for the admin order-detail view. Keeps the
- * application read model out of the Thymeleaf template and pre-formats the money labels. Each line's
- * {@code productName} falls back to the SKU when the referenced product has been soft-deleted, so a
- * historical order still renders every line.
+ * Presentation projection of an {@link OrderDetail} for the template, with pre-formatted money
+ * labels. A line's product name falls back to the SKU if the product was later deleted.
  */
 record OrderDetailView(String id, String status, String totalLabel, List<OrderLineView> lines) {
 

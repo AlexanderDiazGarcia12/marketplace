@@ -17,19 +17,13 @@ import java.util.function.Consumer;
 
 /**
  * Streams a stored CSV file into bounded chunks of {@link ParsedRow}s without ever loading the whole
- * file into memory (RNF-2/RNF-3). Wraps Apache Commons CSV, whose {@link CSVFormat#DEFAULT} is
- * RFC-4180 compliant, so quoted fields with embedded commas (e.g.
- * {@code "Single origin, medium roast, 1kg bag"}) are parsed as a single field rather than split —
- * the naive {@code String.split(",")} the reference file would break on is deliberately avoided. The
- * header line is skipped; only data rows are counted (1-based, so {@code row_number} matches the
- * {@code import_job_errors} contract).
- *
- * <p>Reading is pull-based over the file's own {@link CSVParser} iterator: {@link #forEachChunk}
- * fills one {@code chunkSize}-bounded list at a time, hands it to the caller (which processes it in a
- * single transaction), then reuses the buffer — so at most one chunk of rows is resident at once,
- * regardless of file size. Returns the total number of data rows read this pass, which the worker
- * uses as the idempotent {@code total_rows}. The CSV library stays confined to {@code infrastructure};
- * the application row validator only ever sees the framework-free {@link RawProductRow}.</p>
+ * file into memory. Wraps Apache Commons CSV ({@link CSVFormat#DEFAULT} is RFC-4180 compliant) so
+ * quoted fields with embedded commas parse as a single field rather than split on a naive
+ * {@code String.split(",")}. {@link #forEachChunk} fills one bounded list at a time and reuses the
+ * buffer, so at most one chunk is resident regardless of file size, and returns the total data-row
+ * count the worker uses as the idempotent {@code total_rows}. Data rows are numbered 1-based to match
+ * the {@code import_job_errors} contract; the CSV library stays confined to {@code infrastructure},
+ * exposing only the framework-free {@link RawProductRow}.
  */
 final class CsvProductRowReader {
 

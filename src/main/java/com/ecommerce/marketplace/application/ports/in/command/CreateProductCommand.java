@@ -6,13 +6,9 @@ import com.ecommerce.marketplace.domain.model.product.SKU;
 import com.ecommerce.marketplace.domain.model.product.Weight;
 
 /**
- * Input command for {@link com.ecommerce.marketplace.application.ports.in.CreateProductUseCase}.
- *
- * <p>Carries only domain value objects (US-04 CA): the web layer is responsible for turning raw
- * form/JSON input into {@link SKU}, {@link Category}, {@link Money} and {@link Weight} — via
- * their {@code of(...)} factories, accumulating {@code Failure}s with Vavr {@code Validation} —
- * before this command can even be constructed. {@code application} never sees loose primitives
- * or web DTOs.</p>
+ * Input command for {@link com.ecommerce.marketplace.application.ports.in.CreateProductUseCase},
+ * carrying only domain value objects so {@code application} never sees loose primitives or web
+ * DTOs. The web layer builds the value objects and accumulates failures before constructing it.
  */
 public record CreateProductCommand(
         SKU sku,

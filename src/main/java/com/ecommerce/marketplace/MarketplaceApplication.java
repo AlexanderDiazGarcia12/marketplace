@@ -7,12 +7,11 @@ import org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoCo
 import org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration;
 
 /**
- * The Redis autoconfigurations are excluded here so that Spring Boot never eagerly builds a
- * {@code RedisConnectionFactory} just because {@code spring-data-redis}/Lettuce is on the
- * classpath. The read-through cache (US-14) is opt-in via the {@code cache} profile, and all its
- * Redis beans are declared explicitly in {@code infrastructure.config.RedisCacheConfig} behind
- * {@code @Profile("cache")}. Without this exclusion the app would attempt a Redis connection at
- * boot even with the profile off, breaking startup when Redis is not running.
+ * The Redis autoconfigurations are excluded so Spring Boot never eagerly builds a
+ * {@code RedisConnectionFactory} just because Lettuce is on the classpath. The read-through cache
+ * is opt-in via the {@code cache} profile, with its Redis beans declared behind
+ * {@code @Profile("cache")}; without this exclusion the app would attempt a Redis connection at
+ * boot even with the profile off.
  */
 @SpringBootApplication(exclude = {
         DataRedisAutoConfiguration.class,

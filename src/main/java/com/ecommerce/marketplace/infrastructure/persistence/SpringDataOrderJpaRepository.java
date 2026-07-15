@@ -9,18 +9,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Spring Data JPA repository over {@code orders} (US-22). The order is always read back with its
- * line items in a single fetch join, so the mapper can rebuild the aggregate without relying on
- * lazy loading outside a transaction ({@code open-in-view} is disabled).
- *
- * <p>The admin listing reads instead through native projection queries ({@link #findSummaries}/
- * {@link #findSummariesByStatus}) that select only the header columns plus an {@code item_count}
- * correlated sub-select — never a fetch join of {@code order_items}, which under {@code LIMIT}/
- * {@code OFFSET} would force Hibernate to paginate the collection in memory ({@code HHH90003004}).
- * The paired {@code COUNT(*)} queries supply the total for page math. The
- * {@code CAST(... AS order_status)} matches the native enum type used by {@code orders.status}; the
- * two method pairs (filtered / unfiltered) avoid a nullable enum-cast parameter, mirroring the
- * split-method style in {@code SpringDataImportJobJpaRepository}.</p>
+ * Spring Data JPA repository over {@code orders}. {@code findById}/{@code findByIdempotencyKey}
+ * fetch-join the line items so the aggregate rebuilds without lazy loading. The admin listing
+ * instead uses native projection queries that select only header columns plus a correlated
+ * {@code item_count} — never a fetch join, which under {@code LIMIT}/{@code OFFSET} would force
+ * Hibernate to paginate in memory. The filtered/unfiltered method pairs avoid a nullable
+ * enum-cast parameter.
  */
 public interface SpringDataOrderJpaRepository extends JpaRepository<JPAOrderEntity, UUID> {
 

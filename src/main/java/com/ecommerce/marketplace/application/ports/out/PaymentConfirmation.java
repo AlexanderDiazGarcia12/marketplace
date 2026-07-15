@@ -5,10 +5,8 @@ import com.ecommerce.marketplace.domain.model.order.PaymentToken;
 
 /**
  * Successful charge acknowledgement returned by {@link PaymentGatewayPort#charge}.
- *
- * <p>{@code confirmationReference} is an opaque identifier assigned by the gateway (real or
- * fake); its internal format is entirely the adapter's business (US-20) — the application layer
- * treats it as an opaque string to persist/display, never parses it.</p>
+ * {@code confirmationReference} is an opaque identifier assigned by the gateway; the application
+ * layer persists/displays it as a string and never parses its format.
  */
 public record PaymentConfirmation(PaymentToken paymentToken, Money amount, String confirmationReference) {
 
